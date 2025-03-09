@@ -1,17 +1,16 @@
 import random
 
-import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 import pydantic
 
 IDENTITY_NUMBER = 0
+
 
 def generate_identity() -> int:
     global IDENTITY_NUMBER
     IDENTITY_NUMBER += 1
     return str(IDENTITY_NUMBER)
+
 
 class Person(pydantic.BaseModel):
     identity: str = pydantic.Field(default_factory=generate_identity)
@@ -19,6 +18,7 @@ class Person(pydantic.BaseModel):
 
     def __hash__(self) -> int:
         return hash(self.identity)
+
 
 class WorldParams(pydantic.BaseModel):
     initial_people: set[Person]
@@ -31,25 +31,24 @@ class WorldParams(pydantic.BaseModel):
     periodic_recruit_count: int
     max_age: int
 
+
 class PersonalState(pydantic.BaseModel):
     person: Person
     age: int
     gain: float
 
+
 class World:
-    def __init__(
-        self,
-        *,
-        world_params: WorldParams
-    ) -> None:
+    def __init__(self, *, world_params: WorldParams) -> None:
         self._params = world_params
 
         self.people_state: dict[str, PersonalState] = {
             person.identity: PersonalState(
                 person=person,
                 age=0,
-                gain=world_params.initial_personal_gain
-            ) for person in world_params.initial_people
+                gain=world_params.initial_personal_gain,
+            )
+            for person in world_params.initial_people
         }
 
         self._date: int = 0
@@ -88,7 +87,9 @@ class World:
             del self.people_state[state.person.identity]
 
     def _distribute_profits(self) -> None:
-        individual_gain = (self._org_gain * self._params.profit_coef) / len(self.people_state)
+        individual_gain = (self._org_gain * self._params.profit_coef) / len(
+            self.people_state
+        )
         for state in self.people_state.values():
             state.gain += individual_gain
         self._org_gain = 0
@@ -96,82 +97,20 @@ class World:
     def _recruit_people(self) -> None:
         m = np.average([s.person.selfishness for s in self.people_state.values()])
         # print("Recruiting people similar to", m)
-        new_people_params = np.clip(np.random.normal(loc=m, scale=0.05, size=self._params.periodic_recruit_count), 0, 1)
+        new_people_params = np.clip(
+            np.random.normal(
+                loc=m,
+                scale=0.05,
+                size=self._params.periodic_recruit_count,
+            ),
+            0,
+            1,
+        )
         new_people = [Person(selfishness=p) for p in new_people_params]
         for person in new_people:
             # print("Recruited", person.identity, "with", person.selfishness, "selfishness")
             self.people_state[person.identity] = PersonalState(
                 person=person,
                 age=0,
-                gain=self._params.initial_personal_gain
+                gain=self._params.initial_personal_gain,
             )
-
-class Tally(pydantic.BaseModel):
-    day: int
-    population: int
-    average_wealth: float
-    median_wealth: float
-    average_selfishness: float
-    median_selfishness: float
-    org_gain: float
-
-def main():
-    world = World(
-        world_params=WorldParams(
-            initial_people={Person() for _ in range(10)},
-            profit_period=3,
-            profit_coef=3,
-            initial_personal_gain=20,
-            selfish_gain=6,
-            selfless_gain=5,
-            daily_loss=10,
-            periodic_recruit_count=1,
-            max_age=100
-        )
-    )
-
-    tally: list[Tally] = []
-
-    for i in range(int(1e4)):
-        world.run()
-        if i % 100 == 0:
-            print("Day", i)
-        if len(world.people_state) == 0:
-            break
-        tally.append(Tally(
-            day=i,
-            population=len(world.people_state),
-            average_wealth=np.average([s.gain for s in world.people_state.values()]),
-            median_wealth=np.median([s.gain for s in world.people_state.values()]),
-            average_selfishness=np.average([s.person.selfishness for s in world.people_state.values()]),
-            median_selfishness=np.median([s.person.selfishness for s in world.people_state.values()]),
-            org_gain=world._org_gain
-        ))
-
-    df = pd.DataFrame([
-        t.model_dump()
-        for t in tally
-    ])
-    print(df.head())
-
-    fig, axs = plt.subplots(3, 2, figsize=(20, 10))
-    sns.lineplot(df, x='day', y='average_wealth', ax=axs[0][0])
-    sns.lineplot(df, x='day', y='median_wealth', ax=axs[0][0])
-
-    sns.scatterplot(df, x='average_selfishness', y='average_wealth', ax=axs[0][1])
-    axs[0][1].set_xlim(-.1, 1.1)
-
-    sns.lineplot(df, x='day', y='average_selfishness', ax=axs[1][0])
-    sns.lineplot(df, x='day', y='median_selfishness', ax=axs[1][0])
-    axs[1][0].set_ylim(-.1, 1.1)
-
-    sns.lineplot(df, x='day', y='population', ax=axs[1][1])
-
-    sns.lineplot(df, x='day', y='org_gain', ax=axs[2][0])
-
-    fig.savefig('output.png')
-    plt.show()
-
-
-if __name__ == "__main__":
-    main()
