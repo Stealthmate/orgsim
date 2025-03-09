@@ -1,5 +1,4 @@
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 import seaborn as sns
 import pydantic
@@ -29,51 +28,37 @@ def main():
             daily_loss=10,
             periodic_recruit_count=1,
             max_age=100,
-            reward_distribution_strategy=reward_distribution.AllEqual(),
+            # reward_distribution_strategy=reward_distribution.AllEqual(),
+            reward_distribution_strategy=reward_distribution.EqualContribution(),
         )
     )
 
-    tally: list[Tally] = []
-
-    for i in range(int(1e4)):
-        w.run()
+    for i in range(int(1e3)):
+        w.run_period()
         if i % 100 == 0:
-            print("Day", i)
+            print("Period", i)
         if len(w.people_state) == 0:
             break
-        tally.append(
-            Tally(
-                day=i,
-                population=len(w.people_state),
-                average_wealth=np.average([s.gain for s in w.people_state.values()]),
-                median_wealth=np.median([s.gain for s in w.people_state.values()]),
-                average_selfishness=np.average(
-                    [s.person.selfishness for s in w.people_state.values()]
-                ),
-                median_selfishness=np.median(
-                    [s.person.selfishness for s in w.people_state.values()]
-                ),
-                org_gain=w._org_gain,
-            )
-        )
 
-    df = pd.DataFrame([t.model_dump() for t in tally])
+    df = pd.DataFrame.from_dict(w.period_metrics, orient="index")
     print(df.head())
 
     fig, axs = plt.subplots(3, 2, figsize=(20, 10))
-    sns.lineplot(df, x="day", y="average_wealth", ax=axs[0][0])
-    sns.lineplot(df, x="day", y="median_wealth", ax=axs[0][0])
+    sns.lineplot(df, x="period", y="average_wealth", ax=axs[0][0])
+    # sns.lineplot(df, x="period", y="median_wealth", ax=axs[0][0])
 
     sns.scatterplot(df, x="average_selfishness", y="average_wealth", ax=axs[0][1])
     axs[0][1].set_xlim(-0.1, 1.1)
 
-    sns.lineplot(df, x="day", y="average_selfishness", ax=axs[1][0])
-    sns.lineplot(df, x="day", y="median_selfishness", ax=axs[1][0])
+    sns.lineplot(df, x="period", y="average_selfishness", ax=axs[1][0])
+    # sns.lineplot(df, x="period", y="median_selfishness", ax=axs[1][0])
     axs[1][0].set_ylim(-0.1, 1.1)
 
-    sns.lineplot(df, x="day", y="population", ax=axs[1][1])
+    sns.lineplot(df, x="period", y="population", ax=axs[1][1])
 
-    sns.lineplot(df, x="day", y="org_gain", ax=axs[2][0])
+    sns.lineplot(df, x="period", y="total_reward", ax=axs[2][0])
+    sns.lineplot(df, x="period", y="recruit_average_selfishness", ax=axs[2][1])
+    axs[2][1].set_ylim(-0.1, 1.1)
 
     fig.savefig("output.png")
     plt.show()

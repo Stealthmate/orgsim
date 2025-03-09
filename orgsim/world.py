@@ -34,23 +34,48 @@ class World:
         }
 
         self._date: int = 0
+        self._period: int = 0
         self._org_gain: float = 0.0
 
-    def run(self) -> None:
+        self.period_metrics: list[dict[str, float]] = {}
+
+    def run_period(self) -> None:
+        for i in range(self._params.profit_period):
+            self.run_day()
+
         if len(self.people_state) == 0:
             return
 
+        self._record_period_metric("population", len(self.people_state))
+        self._record_period_metric(
+            "average_selfishness",
+            np.average([x.person.selfishness for x in self.people_state.values()]),
+        )
+        self._record_period_metric("total_reward", self._org_gain)
+
+        self._distribute_profits()
+        self._record_period_metric(
+            "average_wealth", np.average([x.gain for x in self.people_state.values()])
+        )
+
+        self._recruit_people()
+
+        self._period += 1
+
+    def run_day(self) -> None:
         rands = np.random.uniform(size=len(self.people_state))
         for i, state in enumerate(list(self.people_state.values())):
             self._person_act(state, rands[i])
-
         self._date += 1
 
-        if len(self.people_state) == 0:
-            return
-        if self._date % self._params.profit_period == 0:
-            self._distribute_profits()
-            self._recruit_people()
+    def _record_period_metric(self, name: str, value: float) -> None:
+        if self._period not in self.period_metrics:
+            self.period_metrics[self._period] = {"period": self._period}
+
+        row = self.period_metrics[self._period]
+        if name in row:
+            raise Exception(f"{name} already recorded for {self._period}")
+        row[name] = value
 
     def _person_act(self, state: PersonalState, p: float) -> None:
         state.age += 1
@@ -60,6 +85,7 @@ class World:
         else:
             state.gain += self._params.selfless_gain
             self._org_gain += self._params.selfless_gain * self._params.profit_coef
+            state.contributions += 1
 
         if state.gain <= 0:
             # print(state.person.identity, "died of starvation.")
@@ -74,10 +100,14 @@ class World:
         )
         for id_, r in rewards.items():
             self.people_state[id_].gain += r
+            self.people_state[id_].contributions = 0
             self._org_gain -= r
 
     def _recruit_people(self) -> None:
         m = np.average([s.person.selfishness for s in self.people_state.values()])
+
+        self._record_period_metric("recruit_average_selfishness", m)
+
         # print("Recruiting people similar to", m)
         new_people_params = np.clip(
             np.random.normal(

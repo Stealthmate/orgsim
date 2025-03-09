@@ -21,5 +21,6 @@ class Person(pydantic.BaseModel):
 
 class PersonalState(pydantic.BaseModel):
     person: Person
-    age: int
+    age: int = 0
     gain: float
+    contributions: int = 0
