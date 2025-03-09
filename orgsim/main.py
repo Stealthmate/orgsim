@@ -4,7 +4,7 @@ import pandas as pd
 import seaborn as sns
 import pydantic
 
-from orgsim import common
+from orgsim import common, world, reward_distribution
 
 
 class Tally(pydantic.BaseModel):
@@ -18,8 +18,8 @@ class Tally(pydantic.BaseModel):
 
 
 def main():
-    world = common.World(
-        world_params=common.WorldParams(
+    w = world.World(
+        world_params=world.WorldParams(
             initial_people={common.Person() for _ in range(10)},
             profit_period=3,
             profit_coef=3,
@@ -29,32 +29,31 @@ def main():
             daily_loss=10,
             periodic_recruit_count=1,
             max_age=100,
+            reward_distribution_strategy=reward_distribution.AllEqual(),
         )
     )
 
     tally: list[Tally] = []
 
     for i in range(int(1e4)):
-        world.run()
+        w.run()
         if i % 100 == 0:
             print("Day", i)
-        if len(world.people_state) == 0:
+        if len(w.people_state) == 0:
             break
         tally.append(
             Tally(
                 day=i,
-                population=len(world.people_state),
-                average_wealth=np.average(
-                    [s.gain for s in world.people_state.values()]
-                ),
-                median_wealth=np.median([s.gain for s in world.people_state.values()]),
+                population=len(w.people_state),
+                average_wealth=np.average([s.gain for s in w.people_state.values()]),
+                median_wealth=np.median([s.gain for s in w.people_state.values()]),
                 average_selfishness=np.average(
-                    [s.person.selfishness for s in world.people_state.values()]
+                    [s.person.selfishness for s in w.people_state.values()]
                 ),
                 median_selfishness=np.median(
-                    [s.person.selfishness for s in world.people_state.values()]
+                    [s.person.selfishness for s in w.people_state.values()]
                 ),
-                org_gain=world._org_gain,
+                org_gain=w._org_gain,
             )
         )
 
