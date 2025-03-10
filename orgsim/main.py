@@ -1,9 +1,11 @@
+import random
+
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 import pydantic
 
-from orgsim import common, world, reward_distribution
+from orgsim import common, person, world
 
 
 class Tally(pydantic.BaseModel):
@@ -17,9 +19,15 @@ class Tally(pydantic.BaseModel):
 
 
 def main():
+    id_gen = common.SequentialIdentityGenerator()
     w = world.World(
         world_params=world.WorldParams(
-            initial_people={common.Person() for _ in range(10)},
+            initial_people={
+                person.PersonParams(
+                    identity=id_gen.generate(), selfishness=random.random()
+                )
+                for _ in range(10)
+            },
             profit_period=3,
             profit_coef=3,
             initial_personal_gain=20,
@@ -28,8 +36,8 @@ def main():
             daily_loss=10,
             periodic_recruit_count=1,
             max_age=100,
-            # reward_distribution_strategy=reward_distribution.AllEqual(),
-            reward_distribution_strategy=reward_distribution.EqualContribution(),
+            reward_distribution_strategy=world.EqualContribution(),
+            identity_generator=id_gen,
         )
     )
 
@@ -37,7 +45,7 @@ def main():
         w.run_period()
         if i % 100 == 0:
             print("Period", i)
-        if len(w.people_state) == 0:
+        if w.is_empty():
             break
 
     df = pd.DataFrame.from_dict(w.period_metrics, orient="index")

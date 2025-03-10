@@ -1,26 +1,16 @@
-import random
-
-import pydantic
-
-IDENTITY_NUMBER = 0
+import abc
 
 
-def generate_identity() -> int:
-    global IDENTITY_NUMBER
-    IDENTITY_NUMBER += 1
-    return str(IDENTITY_NUMBER)
+class IdentityGenerator(abc.ABC):
+    @abc.abstractmethod
+    def generate(self) -> str:
+        raise NotImplementedError()
 
 
-class Person(pydantic.BaseModel):
-    identity: str = pydantic.Field(default_factory=generate_identity)
-    selfishness: float = pydantic.Field(default_factory=lambda: random.uniform(0, 1))
+class SequentialIdentityGenerator(IdentityGenerator):
+    def __init__(self, initial: int = 0) -> None:
+        self._state: int = initial
 
-    def __hash__(self) -> int:
-        return hash(self.identity)
-
-
-class PersonalState(pydantic.BaseModel):
-    person: Person
-    age: int = 0
-    gain: float
-    contributions: int = 0
+    def generate(self) -> str:
+        self._state += 1
+        return str(self._state)
