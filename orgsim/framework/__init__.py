@@ -21,12 +21,12 @@ class PersonState(pydantic.BaseModel):
 
 class WorldSeed(pydantic.BaseModel):
     initial_people: set[PersonSeed]
-    profit_period: int
-    profit_coef: float
+    fiscal_length: int
+    productivity: float
     initial_personal_gain: float
     selfish_gain: float
     selfless_gain: float
-    daily_loss: float
+    living_cost: float
     periodic_recruit_count: int
     max_age: int
 
@@ -84,7 +84,7 @@ class World:
         return len(self._state.people_states) == 0
 
     def run_period(self) -> None:
-        for i in range(self._state.seed.profit_period):
+        for i in range(self._state.seed.fiscal_length):
             if self.is_empty():
                 return
             self.run_day()

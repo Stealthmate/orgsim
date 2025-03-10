@@ -20,12 +20,12 @@ def main() -> None:
                 )
                 for _ in range(10)
             },
-            profit_period=3,
-            profit_coef=3,
+            fiscal_length=3,
+            productivity=3,
             initial_personal_gain=20,
             selfish_gain=6,
             selfless_gain=5,
-            daily_loss=10,
+            living_cost=10,
             periodic_recruit_count=1,
             max_age=100,
         ),

@@ -118,7 +118,7 @@ class DefaultWorldStrategy(framework.WorldStrategy):
             if pstate.age == state.seed.max_age:
                 del state.people_states[pstate.seed.identity]
 
-            pstate.gain -= state.seed.daily_loss
+            pstate.gain -= state.seed.living_cost
             if pstate.gain <= 0:
                 del state.people_states[pstate.seed.identity]
         state.date += 1
@@ -142,4 +142,4 @@ class DefaultWorldStrategy(framework.WorldStrategy):
         else:
             pstate.gain += state.seed.selfless_gain
             pstate.contributions += 1
-            state.total_reward += state.seed.selfless_gain * state.seed.profit_coef
+            state.total_reward += state.seed.selfless_gain * state.seed.productivity

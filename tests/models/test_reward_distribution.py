@@ -4,12 +4,12 @@ from orgsim import framework, models
 def dummy_world_seed() -> framework.WorldSeed:
     return framework.WorldSeed(
         initial_people=[],
-        profit_period=1,
-        profit_coef=1,
+        fiscal_length=1,
+        productivity=1,
         initial_personal_gain=0,
         selfish_gain=0,
         selfless_gain=0,
-        daily_loss=0,
+        living_cost=0,
         periodic_recruit_count=0,
         max_age=0,
     )
