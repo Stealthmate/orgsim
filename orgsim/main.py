@@ -21,8 +21,8 @@ def main() -> None:
                 for _ in range(10)
             },
             fiscal_length=3,
-            productivity=3,
-            initial_personal_gain=20,
+            productivity=2,
+            initial_personal_gain=30,
             selfish_gain=6,
             selfless_gain=5,
             living_cost=10,
@@ -43,11 +43,18 @@ def main() -> None:
     print(df.head())
 
     fig, axs = plt.subplots(3, 2, figsize=(20, 10))
-    sns.lineplot(df, x="period", y="average_wealth", ax=axs[0][0])
+    axs[0][0].plot(df["period"], df["max_wealth"], label="max")
+    axs[0][0].plot(df["period"], df["avg_wealth"], label="avg")
+    axs[0][0].plot(df["period"], df["min_wealth"], label="min")
+    axs[0][0].set_ylabel("Wealth")
+    axs[0][0].set_xlabel("Period")
+    axs[0][0].legend()
+    axs[0][0].set_ylim(0, 1000)
     # sns.lineplot(df, x="period", y="median_wealth", ax=axs[0][0])
 
-    sns.scatterplot(df, x="average_selfishness", y="average_wealth", ax=axs[0][1])
+    sns.scatterplot(df, x="average_selfishness", y="avg_wealth", ax=axs[0][1])
     axs[0][1].set_xlim(-0.1, 1.1)
+    axs[0][1].set_ylim(0, 500)
 
     sns.lineplot(df, x="period", y="average_selfishness", ax=axs[1][0])
     # sns.lineplot(df, x="period", y="median_selfishness", ax=axs[1][0])

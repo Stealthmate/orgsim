@@ -66,11 +66,6 @@ class DefaultWorldStrategy(framework.WorldStrategy):
         )
         self.metrics.log_period_metric(
             state.fiscal_period,
-            "average_wealth",
-            float(np.average([x.gain for x in state.people_states.values()])),
-        )
-        self.metrics.log_period_metric(
-            state.fiscal_period,
             "average_selfishness",
             float(
                 np.average([x.seed.selfishness for x in state.people_states.values()])
@@ -78,6 +73,22 @@ class DefaultWorldStrategy(framework.WorldStrategy):
         )
 
         self._reward_distribution_strategy.distribute_rewards(state=state)
+
+        self.metrics.log_period_metric(
+            state.fiscal_period,
+            "min_wealth",
+            float(np.amin([x.gain for x in state.people_states.values()])),
+        )
+        self.metrics.log_period_metric(
+            state.fiscal_period,
+            "avg_wealth",
+            float(np.average([x.gain for x in state.people_states.values()])),
+        )
+        self.metrics.log_period_metric(
+            state.fiscal_period,
+            "max_wealth",
+            float(np.amax([x.gain for x in state.people_states.values()])),
+        )
 
     def recruit_people(self, *, state: framework.WorldState) -> None:
         m = np.average([s.seed.selfishness for s in state.people_states.values()])
