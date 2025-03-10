@@ -1,29 +1,21 @@
 import random
 
 import matplotlib.pyplot as plt
-import pandas as pd
 import seaborn as sns
-import pydantic
 
-from orgsim import common, person, world
-
-
-class Tally(pydantic.BaseModel):
-    day: int
-    population: int
-    average_wealth: float
-    median_wealth: float
-    average_selfishness: float
-    median_selfishness: float
-    org_gain: float
+from orgsim import common, framework, models
 
 
-def main():
+def main() -> None:
     id_gen = common.SequentialIdentityGenerator()
-    w = world.World(
-        world_params=world.WorldParams(
+    strategy = models.DefaultWorldStrategy(
+        reward_distribution_strategy=models.EqualContribution(),
+        identity_generator=id_gen,
+    )
+    w = framework.create_world(
+        seed=framework.WorldSeed(
             initial_people={
-                person.PersonParams(
+                framework.PersonSeed(
                     identity=id_gen.generate(), selfishness=random.random()
                 )
                 for _ in range(10)
@@ -36,9 +28,8 @@ def main():
             daily_loss=10,
             periodic_recruit_count=1,
             max_age=100,
-            reward_distribution_strategy=world.EqualContribution(),
-            identity_generator=id_gen,
-        )
+        ),
+        strategy=strategy,
     )
 
     for i in range(int(1e3)):
@@ -48,7 +39,7 @@ def main():
         if w.is_empty():
             break
 
-    df = pd.DataFrame.from_dict(w.period_metrics, orient="index")
+    df = strategy.metrics.period_metrics()
     print(df.head())
 
     fig, axs = plt.subplots(3, 2, figsize=(20, 10))
@@ -64,8 +55,8 @@ def main():
 
     sns.lineplot(df, x="period", y="population", ax=axs[1][1])
 
-    sns.lineplot(df, x="period", y="total_reward", ax=axs[2][0])
-    sns.lineplot(df, x="period", y="recruit_average_selfishness", ax=axs[2][1])
+    # sns.lineplot(df, x="period", y="total_reward", ax=axs[2][0])
+    # sns.lineplot(df, x="period", y="recruit_average_selfishness", ax=axs[2][1])
     axs[2][1].set_ylim(-0.1, 1.1)
 
     fig.savefig("output.png")
