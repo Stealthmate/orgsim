@@ -15,7 +15,7 @@ class PersonSeed(pydantic.BaseModel):
 class PersonState(pydantic.BaseModel):
     seed: PersonSeed
     age: int = 0
-    gain: float = 0.0
+    wealth: float = 0.0
     contributions: int = 0
 
 
@@ -118,7 +118,7 @@ def create_world(seed: WorldSeed, strategy: WorldStrategy) -> World:
         seed=seed,
         date=0,
         people_states={
-            p.identity: PersonState(seed=p, gain=seed.initial_personal_gain)
+            p.identity: PersonState(seed=p, wealth=seed.initial_personal_gain)
             for p in seed.initial_people
         },
         total_reward=0,

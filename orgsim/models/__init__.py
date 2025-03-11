@@ -1,24 +1,88 @@
 import abc
+import json
+import typing
 
 import numpy as np
 import pandas as pd
+import pydantic
 
 from orgsim import common, framework
+
+SeriesIdentity = frozenset[tuple[str, str]]
+
+
+def generate_series_identity(name: str, labels: dict[str, str]) -> SeriesIdentity:
+    return frozenset({"__name": name, **labels}.items())
+
+
+class MetricsDump(pydantic.BaseModel):
+    fiscal: dict[str, dict[int, float]]
+    daily: dict[str, dict[int, float]]
 
 
 class MetricsLogger:
     def __init__(self) -> None:
-        self._period_series: dict[int, dict[str, float]] = {}
+        self._fiscal_series: dict[SeriesIdentity, dict[int, float]] = {}
+        self._daily_series: dict[SeriesIdentity, dict[int, float]] = {}
 
-    def log_period_metric(self, period: int, name: str, value: float) -> None:
-        if period not in self._period_series:
-            self._period_series[period] = {"period": period}
-        if name in self._period_series[period]:
-            raise Exception(f"Metric {name} already logged for period {period}")
-        self._period_series[period][name] = value
+    def log_fiscal_metric(
+        self,
+        period: int,
+        name: str,
+        value: float,
+        labels: typing.Optional[dict[str, str]] = None,
+    ) -> None:
+        the_labels: dict[str, str] = labels if labels is not None else {}
 
-    def period_metrics(self) -> pd.DataFrame:
-        return pd.DataFrame.from_dict(self._period_series, orient="index")
+        id_ = generate_series_identity(name, the_labels)
+        if id_ not in self._fiscal_series:
+            self._fiscal_series[id_] = {}
+
+        series = self._fiscal_series[id_]
+
+        if period in series:
+            raise Exception(f"Double record. {name}, {period}, {the_labels}")
+
+        series[period] = value
+
+    def log_daily_metric(
+        self,
+        day: int,
+        name: str,
+        value: float,
+        labels: typing.Optional[dict[str, str]] = None,
+    ) -> None:
+        the_labels: dict[str, str] = labels if labels is not None else {}
+
+        id_ = generate_series_identity(name, the_labels)
+        if id_ not in self._daily_series:
+            self._daily_series[id_] = {}
+
+        series = self._daily_series[id_]
+
+        if day in series:
+            raise Exception(f"Double record. {name}, {day}, {the_labels}")
+
+        series[day] = value
+
+    def get_fiscal_metric(
+        self,
+        name: str,
+        labels: typing.Optional[dict[str, str]] = None,
+    ) -> "pd.Series[float]":
+        the_labels: dict[str, str] = labels if labels is not None else {}
+        id_ = generate_series_identity(name, the_labels)
+
+        if id_ not in self._fiscal_series:
+            raise Exception(f"No such series: {name}, {the_labels}")
+
+        return pd.Series(self._fiscal_series[id_])
+
+    def dump(self) -> MetricsDump:
+        return MetricsDump(
+            fiscal={json.dumps(dict(id_)): s for id_, s in self._fiscal_series.items()},
+            daily={json.dumps(dict(id_)): s for id_, s in self._daily_series.items()},
+        )
 
 
 class RewardDistributionStrategy(abc.ABC):
@@ -31,7 +95,7 @@ class AllEqual(RewardDistributionStrategy):
     def distribute_rewards(self, *, state: framework.WorldState) -> None:
         v = state.total_reward / len(state.people_states)
         for pstate in state.people_states.values():
-            pstate.gain += v
+            pstate.wealth += v
         state.total_reward = 0
 
 
@@ -42,7 +106,7 @@ class EqualContribution(RewardDistributionStrategy):
             return
         u = state.total_reward / N
         for pstate in state.people_states.values():
-            pstate.gain += pstate.contributions * u
+            pstate.wealth += pstate.contributions * u
         state.total_reward = 0
 
 
@@ -58,36 +122,31 @@ class DefaultWorldStrategy(framework.WorldStrategy):
 
         self.metrics = MetricsLogger()
 
+    def _log_fiscal_base_stats(
+        self, *, period: int, name: str, values: list[float]
+    ) -> None:
+        self.metrics.log_fiscal_metric(period, f"min_{name}", float(np.amin(values)))
+        self.metrics.log_fiscal_metric(period, f"avg_{name}", float(np.average(values)))
+        self.metrics.log_fiscal_metric(period, f"max_{name}", float(np.amax(values)))
+
     def distribute_rewards(self, *, state: framework.WorldState) -> None:
-        self.metrics.log_period_metric(
+        self.metrics.log_fiscal_metric(
             state.fiscal_period,
             "population",
             len(state.people_states.values()),
         )
-        self.metrics.log_period_metric(
-            state.fiscal_period,
-            "average_selfishness",
-            float(
-                np.average([x.seed.selfishness for x in state.people_states.values()])
-            ),
+        self._log_fiscal_base_stats(
+            period=state.fiscal_period,
+            name="selfishness",
+            values=[x.seed.selfishness for x in state.people_states.values()],
         )
 
         self._reward_distribution_strategy.distribute_rewards(state=state)
 
-        self.metrics.log_period_metric(
-            state.fiscal_period,
-            "min_wealth",
-            float(np.amin([x.gain for x in state.people_states.values()])),
-        )
-        self.metrics.log_period_metric(
-            state.fiscal_period,
-            "avg_wealth",
-            float(np.average([x.gain for x in state.people_states.values()])),
-        )
-        self.metrics.log_period_metric(
-            state.fiscal_period,
-            "max_wealth",
-            float(np.amax([x.gain for x in state.people_states.values()])),
+        self._log_fiscal_base_stats(
+            period=state.fiscal_period,
+            name="wealth",
+            values=[x.wealth for x in state.people_states.values()],
         )
 
     def recruit_people(self, *, state: framework.WorldState) -> None:
@@ -110,7 +169,7 @@ class DefaultWorldStrategy(framework.WorldStrategy):
         for id_, s in zip(identities, selfishness_values):
             state.people_states[id_] = framework.PersonState(
                 seed=framework.PersonSeed(identity=id_, selfishness=s),
-                gain=state.seed.initial_personal_gain,
+                wealth=state.seed.initial_personal_gain,
             )
 
     def on_before_person_acts(
@@ -129,8 +188,8 @@ class DefaultWorldStrategy(framework.WorldStrategy):
             if pstate.age == state.seed.max_age:
                 del state.people_states[pstate.seed.identity]
 
-            pstate.gain -= state.seed.living_cost
-            if pstate.gain <= 0:
+            pstate.wealth -= state.seed.living_cost
+            if pstate.wealth <= 0:
                 del state.people_states[pstate.seed.identity]
         state.date += 1
 
@@ -149,8 +208,8 @@ class DefaultWorldStrategy(framework.WorldStrategy):
     ) -> None:
         pstate = state.people_states[identity]
         if r < pstate.seed.selfishness:
-            pstate.gain += state.seed.selfish_gain
+            pstate.wealth += state.seed.selfish_gain
         else:
-            pstate.gain += state.seed.selfless_gain
+            pstate.wealth += state.seed.selfless_gain
             pstate.contributions += 1
             state.total_reward += state.seed.selfless_gain * state.seed.productivity
