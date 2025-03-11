@@ -6,10 +6,9 @@ def dummy_world_seed() -> framework.WorldSeed:
         initial_people=[],
         fiscal_length=1,
         productivity=1,
-        initial_personal_gain=0,
-        selfish_gain=0,
-        selfless_gain=0,
-        living_cost=0,
+        initial_individual_wealth=0,
+        daily_salary=0,
+        daily_living_cost=0,
         periodic_recruit_count=0,
         max_age=0,
     )

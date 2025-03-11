@@ -87,7 +87,9 @@ class MetricsLogger:
 
 class RewardDistributionStrategy(abc.ABC):
     @abc.abstractmethod
-    def distribute_rewards(self, *, state: framework.WorldState) -> None:
+    def distribute_rewards(
+        self, *, state: framework.WorldState, metrics: MetricsLogger
+    ) -> None:
         raise NotImplementedError()
 
 
@@ -100,13 +102,20 @@ class AllEqual(RewardDistributionStrategy):
 
 
 class EqualContribution(RewardDistributionStrategy):
-    def distribute_rewards(self, *, state: framework.WorldState) -> None:
+    def distribute_rewards(
+        self, *, state: framework.WorldState, metrics: MetricsLogger
+    ) -> None:
         N = sum(x.contributions for x in state.people_states.values())
         if N == 0:
             return
         u = state.total_reward / N
+        bonuses: list[float] = []
         for pstate in state.people_states.values():
             pstate.wealth += pstate.contributions * u
+            bonuses.append(pstate.contributions * u)
+        metrics.log_fiscal_metric(
+            state.fiscal_period, "avg_bonus", float(np.average(bonuses))
+        )
         state.total_reward = 0
 
 
@@ -141,7 +150,9 @@ class DefaultWorldStrategy(framework.WorldStrategy):
             values=[x.seed.selfishness for x in state.people_states.values()],
         )
 
-        self._reward_distribution_strategy.distribute_rewards(state=state)
+        self._reward_distribution_strategy.distribute_rewards(
+            state=state, metrics=self.metrics
+        )
 
         self._log_fiscal_base_stats(
             period=state.fiscal_period,
@@ -169,7 +180,7 @@ class DefaultWorldStrategy(framework.WorldStrategy):
         for id_, s in zip(identities, selfishness_values):
             state.people_states[id_] = framework.PersonState(
                 seed=framework.PersonSeed(identity=id_, selfishness=s),
-                wealth=state.seed.initial_personal_gain,
+                wealth=state.seed.initial_individual_wealth,
             )
 
     def on_before_person_acts(
@@ -188,7 +199,7 @@ class DefaultWorldStrategy(framework.WorldStrategy):
             if pstate.age == state.seed.max_age:
                 del state.people_states[pstate.seed.identity]
 
-            pstate.wealth -= state.seed.living_cost
+            pstate.wealth -= state.seed.daily_living_cost
             if pstate.wealth <= 0:
                 del state.people_states[pstate.seed.identity]
         state.date += 1
@@ -196,6 +207,12 @@ class DefaultWorldStrategy(framework.WorldStrategy):
     def on_end_of_period(self, *, state: framework.WorldState) -> None:
         for pstate in state.people_states.values():
             pstate.contributions = 0
+
+        self._log_fiscal_base_stats(
+            period=state.fiscal_period,
+            name="age",
+            values=[x.age for x in state.people_states.values()],
+        )
 
         state.fiscal_period += 1
 
@@ -207,9 +224,10 @@ class DefaultWorldStrategy(framework.WorldStrategy):
         r: float,
     ) -> None:
         pstate = state.people_states[identity]
-        if r < pstate.seed.selfishness:
-            pstate.wealth += state.seed.selfish_gain
-        else:
-            pstate.wealth += state.seed.selfless_gain
-            pstate.contributions += 1
-            state.total_reward += state.seed.selfless_gain * state.seed.productivity
+        pstate.wealth += state.seed.daily_salary
+        pstate.contributions += 1 - pstate.seed.selfishness
+        state.total_reward += (
+            (1 - pstate.seed.selfishness)
+            * state.seed.productivity
+            * state.seed.daily_salary
+        )

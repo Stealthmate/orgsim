@@ -34,7 +34,7 @@ class Plotter:
         ax.set_ylabel("Individual Wealth")
         ax.set_xlabel("Period")
         ax.legend()
-        ax.set_ylim(0, 1000)
+        ax.set_ylim(0, max_.max() * 1.1)
 
     def _build_selfishness(self, ax: matplotlib.axes.Axes) -> None:
         min_ = self.get_fiscal_metric("min_selfishness")
@@ -49,15 +49,33 @@ class Plotter:
         ax.legend()
         ax.set_ylim(-0.1, 1.1)
 
+    def _build_age(self, ax: matplotlib.axes.Axes) -> None:
+        min_ = self.get_fiscal_metric("min_age") / 365
+        avg = self.get_fiscal_metric("avg_age") / 365
+        max_ = self.get_fiscal_metric("max_age") / 365
+
+        ax.plot(max_.index, max_, label="max")
+        ax.plot(avg.index, avg, label="avg")
+        ax.plot(min_.index, min_, label="min")
+        ax.set_ylabel("Age")
+        ax.set_xlabel("Period")
+        ax.legend()
+        ax.set_ylim(0, 21)
+
     def build(self) -> matplotlib.figure.Figure:
         fig, axs = plt.subplots(3, 2, figsize=(18, 10))
         self._build_individual_wealth(axs[0][0])
 
         self._build_selfishness(axs[1][0])
+        self._build_age(axs[1][1])
 
         population = self.get_fiscal_metric("population")
         axs[0][1].plot(population.index, population)
         axs[0][1].set_ylim(0, 50)
+
+        bonus = self.get_fiscal_metric("avg_bonus")
+        axs[2][0].plot(bonus.index, bonus)
+        axs[2][0].set_ylim(0, max(bonus) * 1.1)
 
         return fig
 
@@ -83,6 +101,9 @@ def main() -> None:
         reward_distribution_strategy=models.EqualContribution(),
         identity_generator=id_gen,
     )
+
+    fiscal_length = 365
+
     world_seed = framework.WorldSeed(
         initial_people={
             framework.PersonSeed(
@@ -90,23 +111,22 @@ def main() -> None:
             )
             for _ in range(10)
         },
-        fiscal_length=3,
+        fiscal_length=fiscal_length,
         productivity=2,
-        initial_personal_gain=30,
-        selfish_gain=6,
-        selfless_gain=5,
-        living_cost=10,
+        initial_individual_wealth=600_000,
+        daily_salary=300_000 / 365,
+        daily_living_cost=600_000 / 365,
         periodic_recruit_count=1,
-        max_age=100,
+        max_age=fiscal_length * 20,
     )
     w = framework.create_world(
         seed=world_seed,
         strategy=strategy,
     )
 
-    for i in range(int(1e3)):
+    for i in range(int(2e2)):
         w.run_period()
-        if i % 100 == 0:
+        if i % 10 == 0:
             print("Period", i)
         if w.is_empty():
             break

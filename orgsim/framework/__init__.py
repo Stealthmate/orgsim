@@ -23,10 +23,9 @@ class WorldSeed(pydantic.BaseModel):
     initial_people: set[PersonSeed]
     fiscal_length: int
     productivity: float
-    initial_personal_gain: float
-    selfish_gain: float
-    selfless_gain: float
-    living_cost: float
+    initial_individual_wealth: float
+    daily_salary: float
+    daily_living_cost: float
     periodic_recruit_count: int
     max_age: int
 
@@ -118,7 +117,7 @@ def create_world(seed: WorldSeed, strategy: WorldStrategy) -> World:
         seed=seed,
         date=0,
         people_states={
-            p.identity: PersonState(seed=p, wealth=seed.initial_personal_gain)
+            p.identity: PersonState(seed=p, wealth=seed.initial_individual_wealth)
             for p in seed.initial_people
         },
         total_reward=0,
