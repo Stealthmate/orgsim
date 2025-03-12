@@ -1,7 +1,6 @@
 import abc
 import typing
 
-import numpy as np
 import pydantic
 
 
@@ -48,13 +47,7 @@ class WorldStrategy(abc.ABC):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def person_act(
-        self,
-        *,
-        state: WorldState,
-        identity: str,
-        r: float,
-    ) -> None:
+    def person_act(self, *, state: ImmutableWorldState, identity: str) -> float:
         raise NotImplementedError()
 
     @abc.abstractmethod
@@ -102,20 +95,30 @@ class World:
         self._strategy.on_end_of_period(state=self._state)
 
     def run_day(self) -> None:
-        rands = np.random.uniform(size=len(self._state.people_states))
-        for i, state in enumerate(list(self._state.people_states.values())):
-            self._strategy.on_before_person_acts(
-                state=self._state, identity=state.seed.identity
-            )
-            self._strategy.person_act(
-                state=self._state,
-                identity=state.seed.identity,
-                r=rands[i],
-            )
-            self._strategy.on_after_person_acts(
-                state=self._state, identity=state.seed.identity
-            )
+        for state in list(self._state.people_states.values()):
+            self._person_act(state)
         self._strategy.on_end_of_day(state=self._state)
+
+    def _person_act(self, pstate: PersonState) -> None:
+        self._strategy.on_before_person_acts(
+            state=self._state, identity=pstate.seed.identity
+        )
+
+        contribution = self._strategy.person_act(
+            state=self._state, identity=pstate.seed.identity
+        )
+
+        pstate.wealth += self._state.seed.daily_salary
+        pstate.contributions += contribution
+        self._state.total_reward += (
+            (1 - pstate.seed.selfishness)
+            * self._state.seed.productivity
+            * self._state.seed.daily_salary
+        )
+
+        self._strategy.on_after_person_acts(
+            state=self._state, identity=pstate.seed.identity
+        )
 
     def _recruit_people(self) -> None:
         for seed in self._strategy.generate_recruit_candidates(state=self._state):

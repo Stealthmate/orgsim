@@ -4,7 +4,7 @@ import typing
 import numpy as np
 
 from orgsim import common, framework
-from . import metrics, recruitment
+from . import metrics, person, recruitment
 
 
 class RewardDistributionStrategy(abc.ABC):
@@ -50,10 +50,12 @@ class DefaultWorldStrategy(framework.WorldStrategy):
         identity_generator: common.IdentityGenerator,
         reward_distribution_strategy: RewardDistributionStrategy,
         recruitment_strategy: recruitment.RecruitmentStrategy,
+        person_action_strategy: person.PersonActionStrategy,
     ) -> None:
         self._reward_distribution_strategy = reward_distribution_strategy
         self._recruitment_strategy = recruitment_strategy
         self._identity_generator = identity_generator
+        self._person_action_strategy = person_action_strategy
 
         self.metrics = metrics.Metrics(data=metrics.MetricsData(series_classes={}))
 
@@ -140,18 +142,5 @@ class DefaultWorldStrategy(framework.WorldStrategy):
 
         state.fiscal_period += 1
 
-    def person_act(
-        self,
-        *,
-        state: framework.WorldState,
-        identity: str,
-        r: float,
-    ) -> None:
-        pstate = state.people_states[identity]
-        pstate.wealth += state.seed.daily_salary
-        pstate.contributions += 1 - pstate.seed.selfishness
-        state.total_reward += (
-            (1 - pstate.seed.selfishness)
-            * state.seed.productivity
-            * state.seed.daily_salary
-        )
+    def person_act(self, *, state: framework.WorldState, identity: str) -> float:
+        return self._person_action_strategy.act(state=state, identity=identity)

@@ -110,6 +110,7 @@ def main() -> None:
     strategy = models.DefaultWorldStrategy(
         reward_distribution_strategy=models.EqualContribution(),
         recruitment_strategy=recruitment_strategy,
+        person_action_strategy=models.person.ConstantSelfishness(),
         identity_generator=id_gen,
     )
 
