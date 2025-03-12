@@ -98,11 +98,15 @@ def record_run(seed: framework.WorldSeed, metrics: models.metrics.Metrics) -> No
 
 def main() -> None:
     id_gen = common.SequentialIdentityGenerator()
+    # recruitment_strategy = models.recruitment.AverageOfEveryone(
+    #     identity_generator=id_gen
+    # )
+    recruitment_strategy = models.recruitment.AverageOfTopContributors(
+        identity_generator=id_gen, percentile=0.1
+    )
     strategy = models.DefaultWorldStrategy(
         reward_distribution_strategy=models.EqualContribution(),
-        recruitment_strategy=models.recruitment.AverageOfEveryone(
-            identity_generator=id_gen
-        ),
+        recruitment_strategy=recruitment_strategy,
         identity_generator=id_gen,
     )
 
