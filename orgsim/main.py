@@ -117,7 +117,8 @@ def main() -> None:
     strategy = models.DefaultWorldStrategy(
         reward_distribution_strategy=models.EqualContribution(),
         recruitment_strategy=recruitment_strategy,
-        person_action_strategy=models.person.ConstantSelfishness(),
+        person_action_strategy=models.person.StrategicSelfishness(),
+        # person_action_strategy=models.person.ConstantSelfishness(),
         identity_generator=id_gen,
     )
 
@@ -131,7 +132,7 @@ def main() -> None:
             for _ in range(10)
         },
         fiscal_length=fiscal_length,
-        productivity=0.75,
+        productivity=1.0,
         initial_individual_wealth=600_000,
         daily_salary=300_000 / 365,
         daily_living_cost=600_000 / 365,
