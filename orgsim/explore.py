@@ -69,7 +69,7 @@ def plot_contribution(metrics: Metrics, ax: matplotlib.axes.Axes) -> None:
     ax.set_ylabel("Contribution")
     ax.set_xlabel("Period")
     ax.legend()
-    ax.set_ylim(0, 365)
+    ax.set_ylim(0, 400)
 
 
 def plot_population(metrics: Metrics, ax: matplotlib.axes.Axes) -> None:

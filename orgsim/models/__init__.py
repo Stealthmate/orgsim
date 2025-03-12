@@ -33,13 +33,14 @@ class EqualContribution(RewardDistributionStrategy):
         if N == 0:
             return
         u = state.total_reward / N
-        bonuses: list[float] = []
         for pstate in state.people_states.values():
             pstate.wealth += pstate.contributions * u
-            bonuses.append(pstate.contributions * u)
-        metrics.log(
-            world_state=state, name="avg_bonus", value=float(np.average(bonuses))
-        )
+            metrics.log(
+                world_state=state,
+                name="person_bonus",
+                value=pstate.contributions * u,
+                labels={"identity": pstate.seed.identity},
+            )
         state.total_reward = 0
 
 
@@ -173,4 +174,11 @@ class DefaultWorldStrategy(framework.WorldStrategy):
         state.fiscal_period += 1
 
     def person_act(self, *, state: framework.WorldState, identity: str) -> float:
-        return self._person_action_strategy.act(state=state, identity=identity)
+        v = self._person_action_strategy.act(state=state, identity=identity)
+        self.metrics.log(
+            world_state=state,
+            name="person_contribution",
+            value=v,
+            labels={"identity": identity},
+        )
+        return v
