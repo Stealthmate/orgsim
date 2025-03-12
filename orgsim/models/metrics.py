@@ -20,7 +20,7 @@ class MetricsData(pydantic.BaseModel):
 
 
 def generate_labels_identity(labels: Labels) -> int:
-    return hash(frozenset(labels))
+    return hash(frozenset(list(labels.items())))
 
 
 class Metrics:
@@ -65,6 +65,25 @@ class Metrics:
 
         series = sc.series[lid]
         return pd.Series([s[2] for s in series], index=[s[1] for s in series])
+
+    def get_series_in_class(
+        self, name: str, filter_labels: typing.Optional[Labels] = None
+    ) -> typing.Iterable[tuple[pd.DataFrame, Labels]]:
+        if name not in self._data.series_classes:
+            raise Exception(f"No such series class: {name}")
+        sc = self._data.series_classes[name]
+
+        the_filter_labels = filter_labels if filter_labels else {}
+        for lid, labels in sc.label_mapping.items():
+            if not all(
+                (fk in labels) and (labels[fk] == fv)
+                for fk, fv in the_filter_labels.items()
+            ):
+                continue
+            yield (
+                pd.DataFrame(sc.series[lid], columns=["date", "period", "value"]),
+                labels,
+            )
 
     @property
     def data(self) -> MetricsData:

@@ -6,6 +6,7 @@ import matplotlib
 import matplotlib.axes
 import matplotlib.figure
 import matplotlib.pyplot as plt
+import pandas as pd
 
 from orgsim import common, framework, models
 
@@ -53,6 +54,13 @@ class Plotter:
         ax.legend()
         ax.set_ylim(0, 21)
 
+    def _build_age_distribution(self, ax: matplotlib.axes.Axes) -> None:
+        series = list(self._metrics.get_series_in_class("person_age"))
+        for v, labels_ in series:
+            v["identity"] = int(labels_["identity"])
+        df = pd.concat([s[0] for s in series]).groupby("identity")["value"].max() / 365
+        ax.hist(df)
+
     def build(self) -> matplotlib.figure.Figure:
         fig, axs = plt.subplots(3, 2, figsize=(18, 10))
         self._build_individual_wealth(axs[0][0])
@@ -67,6 +75,8 @@ class Plotter:
         bonus = self._metrics.get_fiscal_series("avg_bonus")
         axs[2][0].plot(bonus.index, bonus)
         axs[2][0].set_ylim(0, max(bonus) * 1.1)
+
+        self._build_age_distribution(axs[2][1])
 
         return fig
 

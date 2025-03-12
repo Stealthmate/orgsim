@@ -122,15 +122,25 @@ class DefaultWorldStrategy(framework.WorldStrategy):
     ) -> None:
         pass
 
+    def _kill_person(self, *, state: framework.WorldState, identity: str) -> None:
+        pstate = state.people_states[identity]
+        self.metrics.log(
+            world_state=state,
+            name="person_age",
+            value=pstate.age,
+            labels={"identity": str(pstate.seed.identity)},
+        )
+        del state.people_states[pstate.seed.identity]
+
     def on_end_of_day(self, *, state: framework.WorldState) -> None:
         for pstate in list(state.people_states.values()):
             pstate.age += 1
             if pstate.age == state.seed.max_age:
-                del state.people_states[pstate.seed.identity]
+                self._kill_person(state=state, identity=pstate.seed.identity)
 
             pstate.wealth -= state.seed.daily_living_cost
             if pstate.wealth <= 0:
-                del state.people_states[pstate.seed.identity]
+                self._kill_person(state=state, identity=pstate.seed.identity)
         state.date += 1
 
     def on_end_of_period(self, *, state: framework.WorldState) -> None:
