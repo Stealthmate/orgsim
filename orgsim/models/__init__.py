@@ -1,4 +1,5 @@
 import abc
+import typing
 
 import numpy as np
 
@@ -89,7 +90,9 @@ class DefaultWorldStrategy(framework.WorldStrategy):
             values=[x.wealth for x in state.people_states.values()],
         )
 
-    def recruit_people(self, *, state: framework.WorldState) -> None:
+    def generate_recruit_candidates(
+        self, *, state: framework.ImmutableWorldState
+    ) -> typing.Iterable[framework.PersonSeed]:
         m = np.average([s.seed.selfishness for s in state.people_states.values()])
 
         identities = [
@@ -105,12 +108,8 @@ class DefaultWorldStrategy(framework.WorldStrategy):
             0,
             1,
         )
-
-        for id_, s in zip(identities, selfishness_values):
-            state.people_states[id_] = framework.PersonState(
-                seed=framework.PersonSeed(identity=id_, selfishness=s),
-                wealth=state.seed.initial_individual_wealth,
-            )
+        for i, s in zip(identities, list(selfishness_values)):
+            yield framework.PersonSeed(identity=i, selfishness=s)
 
     def on_before_person_acts(
         self, *, state: framework.WorldState, identity: str

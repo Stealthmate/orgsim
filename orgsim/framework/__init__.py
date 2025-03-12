@@ -1,4 +1,5 @@
 import abc
+import typing
 
 import numpy as np
 import pydantic
@@ -38,6 +39,9 @@ class WorldState(pydantic.BaseModel):
     fiscal_period: int
 
 
+ImmutableWorldState: typing.TypeAlias = WorldState
+
+
 class WorldStrategy(abc.ABC):
     @abc.abstractmethod
     def distribute_rewards(self, *, state: WorldState) -> None:
@@ -54,7 +58,9 @@ class WorldStrategy(abc.ABC):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def recruit_people(self, *, state: WorldState) -> None:
+    def generate_recruit_candidates(
+        self, *, state: ImmutableWorldState
+    ) -> typing.Iterable[PersonSeed]:
         raise NotImplementedError()
 
     @abc.abstractmethod
@@ -92,7 +98,7 @@ class World:
             return
 
         self._strategy.distribute_rewards(state=self._state)
-        self._strategy.recruit_people(state=self._state)
+        self._recruit_people()
         self._strategy.on_end_of_period(state=self._state)
 
     def run_day(self) -> None:
@@ -110,6 +116,15 @@ class World:
                 state=self._state, identity=state.seed.identity
             )
         self._strategy.on_end_of_day(state=self._state)
+
+    def _recruit_people(self) -> None:
+        for seed in self._strategy.generate_recruit_candidates(state=self._state):
+            self._state.people_states[seed.identity] = PersonState(
+                seed=seed,
+                age=0,
+                wealth=self._state.seed.initial_individual_wealth,
+                contributions=0,
+            )
 
 
 def create_world(seed: WorldSeed, strategy: WorldStrategy) -> World:
