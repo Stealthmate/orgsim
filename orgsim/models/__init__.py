@@ -94,10 +94,34 @@ class DefaultWorldStrategy(framework.WorldStrategy):
             values=[x.wealth for x in state.people_states.values()],
         )
 
-    def generate_recruit_candidates(
+    def pick_role_models(
         self, *, state: framework.ImmutableWorldState
+    ) -> typing.Iterable[str]:
+        yield from self._recruitment_strategy.pick_role_models(state=state)
+
+    def generate_recruits(
+        self,
+        *,
+        seed: framework.WorldSeed,
+        role_models: typing.Iterable[framework.PersonSeed],
     ) -> typing.Iterable[framework.PersonSeed]:
-        return self._recruitment_strategy.generate_recruit_candidates(state=state)
+        m = np.average([s.selfishness for s in role_models])
+
+        identities = [
+            self._identity_generator.generate()
+            for _ in range(seed.periodic_recruit_count)
+        ]
+        selfishness_values = np.clip(
+            np.random.normal(
+                loc=m,
+                scale=0.05,
+                size=seed.periodic_recruit_count,
+            ),
+            0,
+            1,
+        )
+        for i, s in zip(identities, list(selfishness_values)):
+            yield framework.PersonSeed(identity=i, selfishness=s)
 
     def on_before_person_acts(
         self, *, state: framework.WorldState, identity: str

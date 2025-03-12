@@ -51,8 +51,12 @@ class WorldStrategy(abc.ABC):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def generate_recruit_candidates(
-        self, *, state: ImmutableWorldState
+    def pick_role_models(self, *, state: ImmutableWorldState) -> typing.Iterable[str]:
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def generate_recruits(
+        self, *, seed: WorldSeed, role_models: typing.Iterable[PersonSeed]
     ) -> typing.Iterable[PersonSeed]:
         raise NotImplementedError()
 
@@ -121,7 +125,13 @@ class World:
         )
 
     def _recruit_people(self) -> None:
-        for seed in self._strategy.generate_recruit_candidates(state=self._state):
+        role_models = [
+            self._state.people_states[i].seed
+            for i in self._strategy.pick_role_models(state=self._state)
+        ]
+        for seed in self._strategy.generate_recruits(
+            seed=self._state.seed, role_models=role_models
+        ):
             self._state.people_states[seed.identity] = PersonState(
                 seed=seed,
                 age=0,
