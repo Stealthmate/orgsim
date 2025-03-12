@@ -100,6 +100,9 @@ def main() -> None:
     id_gen = common.SequentialIdentityGenerator()
     strategy = models.DefaultWorldStrategy(
         reward_distribution_strategy=models.EqualContribution(),
+        recruitment_strategy=models.recruitment.AverageOfEveryone(
+            identity_generator=id_gen
+        ),
         identity_generator=id_gen,
     )
 

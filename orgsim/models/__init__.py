@@ -4,7 +4,7 @@ import typing
 import numpy as np
 
 from orgsim import common, framework
-from . import metrics
+from . import metrics, recruitment
 
 
 class RewardDistributionStrategy(abc.ABC):
@@ -49,8 +49,10 @@ class DefaultWorldStrategy(framework.WorldStrategy):
         *,
         identity_generator: common.IdentityGenerator,
         reward_distribution_strategy: RewardDistributionStrategy,
+        recruitment_strategy: recruitment.RecruitmentStrategy,
     ) -> None:
         self._reward_distribution_strategy = reward_distribution_strategy
+        self._recruitment_strategy = recruitment_strategy
         self._identity_generator = identity_generator
 
         self.metrics = metrics.Metrics(data=metrics.MetricsData(series_classes={}))
@@ -93,23 +95,7 @@ class DefaultWorldStrategy(framework.WorldStrategy):
     def generate_recruit_candidates(
         self, *, state: framework.ImmutableWorldState
     ) -> typing.Iterable[framework.PersonSeed]:
-        m = np.average([s.seed.selfishness for s in state.people_states.values()])
-
-        identities = [
-            self._identity_generator.generate()
-            for _ in range(state.seed.periodic_recruit_count)
-        ]
-        selfishness_values = np.clip(
-            np.random.normal(
-                loc=m,
-                scale=0.05,
-                size=state.seed.periodic_recruit_count,
-            ),
-            0,
-            1,
-        )
-        for i, s in zip(identities, list(selfishness_values)):
-            yield framework.PersonSeed(identity=i, selfishness=s)
+        return self._recruitment_strategy.generate_recruit_candidates(state=state)
 
     def on_before_person_acts(
         self, *, state: framework.WorldState, identity: str
