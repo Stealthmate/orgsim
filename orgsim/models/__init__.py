@@ -83,6 +83,11 @@ class DefaultWorldStrategy(framework.WorldStrategy):
             name="selfishness",
             values=[x.seed.selfishness for x in state.people_states.values()],
         )
+        self._log_fiscal_base_stats(
+            state=state,
+            name="contribution",
+            values=[x.contributions for x in state.people_states.values()],
+        )
 
         self._reward_distribution_strategy.distribute_rewards(
             state=state, metrics=self.metrics

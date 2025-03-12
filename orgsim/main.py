@@ -42,6 +42,19 @@ class Plotter:
         ax.legend()
         ax.set_ylim(-0.1, 1.1)
 
+    def _build_contribution(self, ax: matplotlib.axes.Axes) -> None:
+        min_ = self._metrics.get_fiscal_series("min_contribution")
+        avg = self._metrics.get_fiscal_series("avg_contribution")
+        max_ = self._metrics.get_fiscal_series("max_contribution")
+
+        ax.plot(max_.index, max_, label="max")
+        ax.plot(avg.index, avg, label="avg")
+        ax.plot(min_.index, min_, label="min")
+        ax.set_ylabel("Contribution")
+        ax.set_xlabel("Period")
+        ax.legend()
+        ax.set_ylim(0, 365)
+
     def _build_age(self, ax: matplotlib.axes.Axes) -> None:
         min_ = self._metrics.get_fiscal_series("min_age") / 365
         avg = self._metrics.get_fiscal_series("avg_age") / 365
@@ -66,20 +79,14 @@ class Plotter:
     def build(self) -> matplotlib.figure.Figure:
         fig, axs = plt.subplots(3, 2, figsize=(18, 10))
         self._build_individual_wealth(axs[0][0])
-
+        self._build_contribution(axs[2][0])
         self._build_selfishness(axs[1][0])
         self._build_age(axs[1][1])
+        self._build_age_distribution(axs[2][1])
 
         population = self._metrics.get_fiscal_series("population")
         axs[0][1].plot(population.index, population)
         axs[0][1].set_ylim(0, 50)
-
-        bonus = self._metrics.get_fiscal_series("avg_bonus")
-        axs[2][0].plot(bonus.index, bonus)
-        axs[2][0].set_yscale("log")
-        axs[2][0].set_ylim(1e0, 1e8)
-
-        self._build_age_distribution(axs[2][1])
 
         return fig
 
