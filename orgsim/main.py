@@ -26,7 +26,8 @@ class Plotter:
         ax.set_ylabel("Individual Wealth")
         ax.set_xlabel("Period")
         ax.legend()
-        ax.set_ylim(0, max_.max() * 1.1)
+        ax.set_yscale("log")
+        ax.set_ylim(1e0, 1e8)
 
     def _build_selfishness(self, ax: matplotlib.axes.Axes) -> None:
         min_ = self._metrics.get_fiscal_series("min_selfishness")
@@ -59,7 +60,8 @@ class Plotter:
         for v, labels_ in series:
             v["identity"] = int(labels_["identity"])
         df = pd.concat([s[0] for s in series]).groupby("identity")["value"].max() / 365
-        ax.hist(df)
+        ax.hist(df, bins=list(range(0, 21, 2)))
+        ax.set_xlim(0, 20)
 
     def build(self) -> matplotlib.figure.Figure:
         fig, axs = plt.subplots(3, 2, figsize=(18, 10))
@@ -74,7 +76,8 @@ class Plotter:
 
         bonus = self._metrics.get_fiscal_series("avg_bonus")
         axs[2][0].plot(bonus.index, bonus)
-        axs[2][0].set_ylim(0, max(bonus) * 1.1)
+        axs[2][0].set_yscale("log")
+        axs[2][0].set_ylim(1e0, 1e8)
 
         self._build_age_distribution(axs[2][1])
 
@@ -120,7 +123,7 @@ def main() -> None:
             for _ in range(10)
         },
         fiscal_length=fiscal_length,
-        productivity=2,
+        productivity=0.75,
         initial_individual_wealth=600_000,
         daily_salary=300_000 / 365,
         daily_living_cost=600_000 / 365,
