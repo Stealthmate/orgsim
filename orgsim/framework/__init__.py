@@ -115,9 +115,7 @@ class World:
         pstate.wealth += self._state.seed.daily_salary
         pstate.contributions += contribution
         self._state.total_reward += (
-            (1 - pstate.seed.selfishness)
-            * self._state.seed.productivity
-            * self._state.seed.daily_salary
+            contribution * self._state.seed.productivity * self._state.seed.daily_salary
         )
 
         self._strategy.on_after_person_acts(
