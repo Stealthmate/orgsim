@@ -153,6 +153,7 @@ class DefaultWorldStrategy(framework.WorldStrategy):
             pstate.age += 1
             if pstate.age == state.seed.max_age:
                 self._kill_person(state=state, identity=pstate.seed.identity)
+                continue
 
             pstate.wealth -= state.seed.daily_living_cost
             if pstate.wealth <= 0:
