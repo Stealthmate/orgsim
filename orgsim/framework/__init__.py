@@ -16,7 +16,7 @@ class PersonState(pydantic.BaseModel):
     seed: PersonSeed
     age: int = 0
     wealth: float = 0.0
-    contributions: int = 0
+    contributions: float = 0
 
 
 class WorldSeed(pydantic.BaseModel):

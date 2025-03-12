@@ -1,5 +1,4 @@
 import datetime
-import json
 import pathlib
 import random
 
@@ -7,26 +6,18 @@ import matplotlib
 import matplotlib.axes
 import matplotlib.figure
 import matplotlib.pyplot as plt
-import pandas as pd
 
 from orgsim import common, framework, models
 
 
 class Plotter:
-    def __init__(self, metrics: models.MetricsDump) -> None:
+    def __init__(self, metrics: models.metrics.Metrics) -> None:
         self._metrics = metrics
 
-    def get_fiscal_metric(self, name: str) -> "pd.Series[float]":
-        for id_, series in self._metrics.fiscal.items():
-            name_ = json.loads(id_)["__name"]
-            if name_ == name:
-                return pd.Series(series)
-        raise Exception(f"Not found: {name}")
-
     def _build_individual_wealth(self, ax: matplotlib.axes.Axes) -> None:
-        min_ = self.get_fiscal_metric("min_wealth")
-        avg = self.get_fiscal_metric("avg_wealth")
-        max_ = self.get_fiscal_metric("max_wealth")
+        min_ = self._metrics.get_fiscal_series("min_wealth")
+        avg = self._metrics.get_fiscal_series("avg_wealth")
+        max_ = self._metrics.get_fiscal_series("max_wealth")
 
         ax.plot(max_.index, max_, label="max")
         ax.plot(avg.index, avg, label="avg")
@@ -37,9 +28,9 @@ class Plotter:
         ax.set_ylim(0, max_.max() * 1.1)
 
     def _build_selfishness(self, ax: matplotlib.axes.Axes) -> None:
-        min_ = self.get_fiscal_metric("min_selfishness")
-        avg = self.get_fiscal_metric("avg_selfishness")
-        max_ = self.get_fiscal_metric("max_selfishness")
+        min_ = self._metrics.get_fiscal_series("min_selfishness")
+        avg = self._metrics.get_fiscal_series("avg_selfishness")
+        max_ = self._metrics.get_fiscal_series("max_selfishness")
 
         ax.plot(max_.index, max_, label="max")
         ax.plot(avg.index, avg, label="avg")
@@ -50,9 +41,9 @@ class Plotter:
         ax.set_ylim(-0.1, 1.1)
 
     def _build_age(self, ax: matplotlib.axes.Axes) -> None:
-        min_ = self.get_fiscal_metric("min_age") / 365
-        avg = self.get_fiscal_metric("avg_age") / 365
-        max_ = self.get_fiscal_metric("max_age") / 365
+        min_ = self._metrics.get_fiscal_series("min_age") / 365
+        avg = self._metrics.get_fiscal_series("avg_age") / 365
+        max_ = self._metrics.get_fiscal_series("max_age") / 365
 
         ax.plot(max_.index, max_, label="max")
         ax.plot(avg.index, avg, label="avg")
@@ -69,18 +60,18 @@ class Plotter:
         self._build_selfishness(axs[1][0])
         self._build_age(axs[1][1])
 
-        population = self.get_fiscal_metric("population")
+        population = self._metrics.get_fiscal_series("population")
         axs[0][1].plot(population.index, population)
         axs[0][1].set_ylim(0, 50)
 
-        bonus = self.get_fiscal_metric("avg_bonus")
+        bonus = self._metrics.get_fiscal_series("avg_bonus")
         axs[2][0].plot(bonus.index, bonus)
         axs[2][0].set_ylim(0, max(bonus) * 1.1)
 
         return fig
 
 
-def record_run(seed: framework.WorldSeed, metrics: models.MetricsDump) -> None:
+def record_run(seed: framework.WorldSeed, metrics: models.metrics.Metrics) -> None:
     ts = int(datetime.datetime.now().timestamp())
     root = pathlib.Path(".ignored", str(ts))
     root.mkdir(parents=True)
@@ -89,7 +80,7 @@ def record_run(seed: framework.WorldSeed, metrics: models.MetricsDump) -> None:
         f.write(seed.model_dump_json())
 
     with open(f"{root}/metrics.json", mode="w") as f:
-        f.write(metrics.model_dump_json())
+        f.write(metrics.data.model_dump_json())
 
     fig = Plotter(metrics).build()
     fig.savefig(f"{root}/summary-fiscal.png")
@@ -131,7 +122,7 @@ def main() -> None:
         if w.is_empty():
             break
 
-    record_run(world_seed, strategy.metrics.dump())
+    record_run(world_seed, strategy.metrics)
     # plt.show()
 
 
