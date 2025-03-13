@@ -3,21 +3,25 @@ import typing
 
 import numpy as np
 
-from orgsim import common, framework
-from . import metrics, person, recruitment
+from orgsim import common, framework, metrics
+from . import person, recruitment
+
+type WorldSeed = framework.WorldSeed[person.PersonSeed]
+type WorldState = framework.WorldState[person.PersonSeed]
+type ImmutableWorldState = framework.ImmutableWorldState[person.PersonSeed]
 
 
 class RewardDistributionStrategy(abc.ABC):
     @abc.abstractmethod
     def distribute_rewards(
-        self, *, state: framework.WorldState, metrics: metrics.Metrics
+        self, *, state: WorldState, metrics: metrics.Metrics
     ) -> None:
         raise NotImplementedError()
 
 
 class AllEqual(RewardDistributionStrategy):
     def distribute_rewards(
-        self, *, state: framework.WorldState, metrics: metrics.Metrics
+        self, *, state: WorldState, metrics: metrics.Metrics
     ) -> None:
         v = state.total_reward / len(state.people_states)
         for pstate in state.people_states.values():
@@ -27,7 +31,7 @@ class AllEqual(RewardDistributionStrategy):
 
 class EqualContribution(RewardDistributionStrategy):
     def distribute_rewards(
-        self, *, state: framework.WorldState, metrics: metrics.Metrics
+        self, *, state: WorldState, metrics: metrics.Metrics
     ) -> None:
         N = sum(x.contributions for x in state.people_states.values())
         if N == 0:
@@ -36,15 +40,15 @@ class EqualContribution(RewardDistributionStrategy):
         for pstate in state.people_states.values():
             pstate.wealth += pstate.contributions * u
             metrics.log(
-                world_state=state,
+                time=state.time,
                 name="person_bonus",
                 value=pstate.contributions * u,
-                labels={"identity": pstate.seed.identity},
+                labels={"identity": pstate.identity},
             )
         state.total_reward = 0
 
 
-class DefaultWorldStrategy(framework.WorldStrategy):
+class DefaultWorldStrategy(framework.WorldStrategy[person.PersonSeed]):
     def __init__(
         self,
         *,
@@ -61,21 +65,21 @@ class DefaultWorldStrategy(framework.WorldStrategy):
         self.metrics = metrics.Metrics(data=metrics.MetricsData(series_classes={}))
 
     def _log_fiscal_base_stats(
-        self, *, state: framework.WorldState, name: str, values: list[float]
+        self, *, state: WorldState, name: str, values: list[float]
     ) -> None:
         self.metrics.log(
-            world_state=state, name=f"min_{name}", value=float(np.amin(values))
+            time=state.time, name=f"min_{name}", value=float(np.amin(values))
         )
         self.metrics.log(
-            world_state=state, name=f"avg_{name}", value=float(np.average(values))
+            time=state.time, name=f"avg_{name}", value=float(np.average(values))
         )
         self.metrics.log(
-            world_state=state, name=f"max_{name}", value=float(np.amax(values))
+            time=state.time, name=f"max_{name}", value=float(np.amax(values))
         )
 
-    def distribute_rewards(self, *, state: framework.WorldState) -> None:
+    def distribute_rewards(self, *, state: WorldState) -> None:
         self.metrics.log(
-            world_state=state,
+            time=state.time,
             name="population",
             value=len(state.people_states.values()),
         )
@@ -100,17 +104,15 @@ class DefaultWorldStrategy(framework.WorldStrategy):
             values=[x.wealth for x in state.people_states.values()],
         )
 
-    def pick_role_models(
-        self, *, state: framework.ImmutableWorldState
-    ) -> typing.Iterable[str]:
+    def pick_role_models(self, *, state: ImmutableWorldState) -> typing.Iterable[str]:
         yield from self._recruitment_strategy.pick_role_models(state=state)
 
     def generate_recruits(
         self,
         *,
-        seed: framework.WorldSeed,
-        role_models: typing.Iterable[framework.PersonSeed],
-    ) -> typing.Iterable[framework.PersonSeed]:
+        seed: WorldSeed,
+        role_models: typing.Iterable[person.PersonSeed],
+    ) -> typing.Iterable[person.PersonSeed]:
         m = np.average([s.selfishness for s in role_models])
 
         identities = [
@@ -127,41 +129,36 @@ class DefaultWorldStrategy(framework.WorldStrategy):
             1,
         )
         for i, s in zip(identities, list(selfishness_values)):
-            yield framework.PersonSeed(identity=i, selfishness=s)
+            yield person.PersonSeed(selfishness=s)
 
-    def on_before_person_acts(
-        self, *, state: framework.WorldState, identity: str
-    ) -> None:
+    def on_before_person_acts(self, *, state: WorldState, identity: str) -> None:
         pass
 
-    def on_after_person_acts(
-        self, *, state: framework.WorldState, identity: str
-    ) -> None:
+    def on_after_person_acts(self, *, state: WorldState, identity: str) -> None:
         pass
 
-    def _kill_person(self, *, state: framework.WorldState, identity: str) -> None:
+    def _kill_person(self, *, state: WorldState, identity: str) -> None:
         pstate = state.people_states[identity]
         self.metrics.log(
-            world_state=state,
+            time=state.time,
             name="person_age",
             value=pstate.age,
-            labels={"identity": str(pstate.seed.identity)},
+            labels={"identity": str(pstate.identity)},
         )
-        del state.people_states[pstate.seed.identity]
+        del state.people_states[pstate.identity]
 
-    def on_end_of_day(self, *, state: framework.WorldState) -> None:
+    def on_end_of_day(self, *, state: WorldState) -> None:
         for pstate in list(state.people_states.values()):
             pstate.age += 1
             if pstate.age == state.seed.max_age:
-                self._kill_person(state=state, identity=pstate.seed.identity)
+                self._kill_person(state=state, identity=pstate.identity)
                 continue
 
             pstate.wealth -= state.seed.daily_living_cost
             if pstate.wealth <= 0:
-                self._kill_person(state=state, identity=pstate.seed.identity)
-        state.date += 1
+                self._kill_person(state=state, identity=pstate.identity)
 
-    def on_end_of_period(self, *, state: framework.WorldState) -> None:
+    def on_end_of_period(self, *, state: WorldState) -> None:
         for pstate in state.people_states.values():
             pstate.contributions = 0
 
@@ -171,12 +168,10 @@ class DefaultWorldStrategy(framework.WorldStrategy):
             values=[x.age for x in state.people_states.values()],
         )
 
-        state.fiscal_period += 1
-
-    def person_act(self, *, state: framework.WorldState, identity: str) -> float:
+    def person_act(self, *, state: WorldState, identity: str) -> float:
         v = self._person_action_strategy.act(state=state, identity=identity)
         self.metrics.log(
-            world_state=state,
+            time=state.time,
             name="person_contribution",
             value=v,
             labels={"identity": identity},

@@ -1,10 +1,18 @@
 import pathlib
+import typing
 
-from . import common, explore, framework, models
+import pydantic
+
+from . import common, explore, framework, metrics, models
+
+T = typing.TypeVar("T", bound=pydantic.BaseModel)
 
 
 def run_world(
-    *, seed: framework.WorldSeed, strategy: framework.WorldStrategy, periods: int = 200
+    *,
+    seed: framework.WorldSeed[T],
+    strategy: framework.WorldStrategy[T],
+    periods: int = 200,
 ) -> None:
     w = framework.create_world(
         seed=seed,
@@ -22,10 +30,10 @@ def run_world(
 def do_experiment(
     *,
     title: str,
-    seed: framework.WorldSeed,
+    seed: framework.WorldSeed[models.person.PersonSeed],
     strategy: models.DefaultWorldStrategy,
     periods: int = 200,
-) -> models.metrics.Metrics:
+) -> metrics.Metrics:
     run_world(seed=seed, strategy=strategy, periods=periods)
     root = pathlib.Path(".", title)
     root.mkdir(parents=True, exist_ok=True)

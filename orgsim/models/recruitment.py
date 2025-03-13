@@ -3,12 +3,13 @@ import typing
 
 
 from orgsim import framework, common
+from .person import PersonSeed
 
 
 class RecruitmentStrategy(abc.ABC):
     @abc.abstractmethod
     def pick_role_models(
-        self, *, state: framework.ImmutableWorldState
+        self, *, state: framework.ImmutableWorldState[PersonSeed]
     ) -> typing.Iterable[str]:
         raise NotImplementedError()
 
@@ -18,10 +19,10 @@ class AverageOfEveryone(RecruitmentStrategy):
         self._identity_generator = identity_generator
 
     def pick_role_models(
-        self, *, state: framework.ImmutableWorldState
+        self, *, state: framework.ImmutableWorldState[PersonSeed]
     ) -> typing.Iterable[str]:
         for s in state.people_states.values():
-            yield s.seed.identity
+            yield s.identity
 
 
 class AverageOfTopContributors(RecruitmentStrategy):
@@ -32,7 +33,7 @@ class AverageOfTopContributors(RecruitmentStrategy):
         self._percentile = percentile
 
     def pick_role_models(
-        self, *, state: framework.ImmutableWorldState
+        self, *, state: framework.ImmutableWorldState[PersonSeed]
     ) -> typing.Iterable[str]:
         contributors = sorted(
             list(state.people_states.values()),
@@ -47,4 +48,4 @@ class AverageOfTopContributors(RecruitmentStrategy):
         sample = contributors[:p]
 
         for s in sample:
-            yield s.seed.identity
+            yield s.identity

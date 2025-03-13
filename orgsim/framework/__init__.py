@@ -3,24 +3,19 @@ import typing
 
 import pydantic
 
+T = typing.TypeVar("T", bound=pydantic.BaseModel)
 
-class PersonSeed(pydantic.BaseModel):
+
+class PersonState(pydantic.BaseModel, typing.Generic[T]):
+    seed: T
     identity: str
-    selfishness: float
-
-    def __hash__(self) -> int:
-        return hash(self.identity)
-
-
-class PersonState(pydantic.BaseModel):
-    seed: PersonSeed
     age: int = 0
     wealth: float = 0.0
     contributions: float = 0
 
 
-class WorldSeed(pydantic.BaseModel):
-    initial_people: set[PersonSeed]
+class WorldSeed(pydantic.BaseModel, typing.Generic[T]):
+    initial_people: set[T]
     fiscal_length: int
     productivity: float
     initial_individual_wealth: float
@@ -30,55 +25,65 @@ class WorldSeed(pydantic.BaseModel):
     max_age: int
 
 
-class WorldState(pydantic.BaseModel):
-    seed: WorldSeed
+class WorldTime(pydantic.BaseModel):
     date: int
-    people_states: dict[str, PersonState]
-    total_reward: float
     fiscal_period: int
 
 
-ImmutableWorldState: typing.TypeAlias = WorldState
+class WorldState(pydantic.BaseModel, typing.Generic[T]):
+    seed: WorldSeed[T]
+    people_states: dict[str, PersonState[T]]
+    total_reward: float
+    time: WorldTime
 
 
-class WorldStrategy(abc.ABC):
+type ImmutableWorldState[T] = WorldState[T]
+
+
+class WorldStrategy(abc.ABC, typing.Generic[T]):
     @abc.abstractmethod
-    def distribute_rewards(self, *, state: WorldState) -> None:
+    def generate_identity(self) -> str:
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def person_act(self, *, state: ImmutableWorldState, identity: str) -> float:
+    def distribute_rewards(self, *, state: WorldState[T]) -> None:
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def pick_role_models(self, *, state: ImmutableWorldState) -> typing.Iterable[str]:
+    def person_act(self, *, state: ImmutableWorldState[T], identity: str) -> float:
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def pick_role_models(
+        self, *, state: ImmutableWorldState[T]
+    ) -> typing.Iterable[str]:
         raise NotImplementedError()
 
     @abc.abstractmethod
     def generate_recruits(
-        self, *, seed: WorldSeed, role_models: typing.Iterable[PersonSeed]
-    ) -> typing.Iterable[PersonSeed]:
+        self, *, seed: WorldSeed[T], role_models: typing.Iterable[T]
+    ) -> typing.Iterable[T]:
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def on_before_person_acts(self, *, state: WorldState, identity: str) -> None:
+    def on_before_person_acts(self, *, state: WorldState[T], identity: str) -> None:
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def on_after_person_acts(self, *, state: WorldState, identity: str) -> None:
+    def on_after_person_acts(self, *, state: WorldState[T], identity: str) -> None:
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def on_end_of_day(self, *, state: WorldState) -> None:
+    def on_end_of_day(self, *, state: WorldState[T]) -> None:
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def on_end_of_period(self, *, state: WorldState) -> None:
+    def on_end_of_period(self, *, state: WorldState[T]) -> None:
         raise NotImplementedError()
 
 
-class World:
-    def __init__(self, *, state: WorldState, strategy: WorldStrategy) -> None:
+class World(typing.Generic[T]):
+    def __init__(self, *, state: WorldState[T], strategy: WorldStrategy[T]) -> None:
         self._state = state
         self._strategy = strategy
 
@@ -98,18 +103,21 @@ class World:
         self._recruit_people()
         self._strategy.on_end_of_period(state=self._state)
 
+        self._state.time.fiscal_period += 1
+
     def run_day(self) -> None:
         for state in list(self._state.people_states.values()):
             self._person_act(state)
         self._strategy.on_end_of_day(state=self._state)
+        self._state.time.date += 1
 
-    def _person_act(self, pstate: PersonState) -> None:
+    def _person_act(self, pstate: PersonState[T]) -> None:
         self._strategy.on_before_person_acts(
-            state=self._state, identity=pstate.seed.identity
+            state=self._state, identity=pstate.identity
         )
 
         contribution = self._strategy.person_act(
-            state=self._state, identity=pstate.seed.identity
+            state=self._state, identity=pstate.identity
         )
 
         pstate.wealth += self._state.seed.daily_salary
@@ -118,9 +126,7 @@ class World:
             contribution * self._state.seed.productivity * self._state.seed.daily_salary
         )
 
-        self._strategy.on_after_person_acts(
-            state=self._state, identity=pstate.seed.identity
-        )
+        self._strategy.on_after_person_acts(state=self._state, identity=pstate.identity)
 
     def _recruit_people(self) -> None:
         role_models = [
@@ -130,24 +136,26 @@ class World:
         for seed in self._strategy.generate_recruits(
             seed=self._state.seed, role_models=role_models
         ):
-            self._state.people_states[seed.identity] = PersonState(
+            identity = self._strategy.generate_identity()
+            self._state.people_states[identity] = PersonState(
                 seed=seed,
+                identity=identity,
                 age=0,
                 wealth=self._state.seed.initial_individual_wealth,
                 contributions=0,
             )
 
 
-def create_world(seed: WorldSeed, strategy: WorldStrategy) -> World:
+def create_world(seed: WorldSeed[T], strategy: WorldStrategy[T]) -> World[T]:
+    identities = [strategy.generate_identity() for _ in range(len(seed.initial_people))]
     state = WorldState(
         seed=seed,
-        date=0,
         people_states={
-            p.identity: PersonState(seed=p, wealth=seed.initial_individual_wealth)
-            for p in seed.initial_people
+            i: PersonState(seed=p, identity=i, wealth=seed.initial_individual_wealth)
+            for p, i in zip(seed.initial_people, identities)
         },
         total_reward=0,
-        fiscal_period=0,
+        time=WorldTime(date=0, fiscal_period=0),
     )
 
     return World(state=state, strategy=strategy)

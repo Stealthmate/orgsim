@@ -3,7 +3,7 @@ import matplotlib.axes
 import matplotlib.figure
 import pandas as pd
 
-from orgsim.models.metrics import Metrics
+from orgsim.metrics import Metrics
 
 
 def plot_individual_wealth(metrics: Metrics, ax: matplotlib.axes.Axes) -> None:

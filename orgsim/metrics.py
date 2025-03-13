@@ -3,7 +3,7 @@ import typing
 import pandas as pd
 import pydantic
 
-from orgsim.framework import WorldState
+from orgsim.framework import WorldTime
 
 Labels: typing.TypeAlias = dict[str, str]
 
@@ -30,7 +30,7 @@ class Metrics:
     def log(
         self,
         *,
-        world_state: WorldState,
+        time: WorldTime,
         name: str,
         value: float,
         labels: typing.Optional[Labels] = None,
@@ -49,7 +49,7 @@ class Metrics:
             sc.series[lid] = []
 
         ts = sc.series[lid]
-        ts.append((world_state.date, world_state.fiscal_period, value))
+        ts.append((time.date, time.fiscal_period, value))
 
     def get_fiscal_series(
         self, name: str, labels: typing.Optional[Labels] = None
