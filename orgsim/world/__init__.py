@@ -92,7 +92,9 @@ class Nature(
         *,
         state: State[OrgState, NatureState, IndividualState, CommonState],
         role_models: dict[str, float],
-    ) -> dict[str, Candidate[CandidatePublicData, CandidatePrivateData]]:
+    ) -> typing.Iterable[
+        tuple[str, Candidate[CandidatePublicData, CandidatePrivateData]]
+    ]:
         raise NotImplementedError()
 
     @abc.abstractmethod
@@ -144,12 +146,12 @@ class Org(
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def evaluate_candidates(
+    def evaluate_candidate(
         self,
         *,
         state: State[OrgState, NatureState, IndividualState, CommonState],
-        candidates: dict[str, CandidatePublicData],
-    ) -> set[str]:
+        candidate: CandidatePublicData,
+    ) -> bool:
         raise NotImplementedError()
 
 
@@ -247,20 +249,27 @@ class World(
     def perform_recruitment(self) -> None:
         cs = self._config.state
         evaluations = self._config.org.evaluate_individuals(state=cs)
+
         candidates = self._config.nature.generate_candidates(
             state=cs, role_models=evaluations
         )
-        accepted = self._config.org.evaluate_candidates(
-            state=cs,
-            candidates={k: v.public_data for k, v in candidates.items()},
-        )
-        for identity in accepted:
-            candidate = candidates[identity]
-            individual = self._config.nature.generate_individual(candidate=candidate)
-            self._config.individuals[identity] = individual
-            self._config.org.recruit(
-                state=cs, identity=identity, candidate=candidate.public_data
-            )
+
+        try:
+            for identity, candidate in candidates:
+                accepted = self._config.org.evaluate_candidate(
+                    state=cs, candidate=candidate.public_data
+                )
+                if not accepted:
+                    continue
+                individual = self._config.nature.generate_individual(
+                    candidate=candidate
+                )
+                self._config.individuals[identity] = individual
+                self._config.org.recruit(
+                    state=cs, identity=identity, candidate=candidate.public_data
+                )
+        except StopIteration:
+            pass
 
 
 def initialize_base_world_state(seed: BaseWorldSeed) -> BaseWorldState:
