@@ -11,23 +11,6 @@ CandidatePublicData = typing.TypeVar("CandidatePublicData")
 CandidatePrivateData = typing.TypeVar("CandidatePrivateData")
 
 
-class State(
-    pydantic.BaseModel,
-    typing.Generic[OrgState, NatureState, IndividualState, CommonState],
-):
-    org: OrgState
-    nature: NatureState
-    individuals: dict[str, IndividualState]
-    common_state: CommonState
-
-
-class Candidate(
-    pydantic.BaseModel, typing.Generic[CandidatePublicData, CandidatePrivateData]
-):
-    public_data: CandidatePublicData
-    private_data: CandidatePrivateData
-
-
 class BaseWorldSeed(pydantic.BaseModel):
     fiscal_length: int
 
@@ -44,6 +27,24 @@ class BaseWorldState(pydantic.BaseModel):
         return cls(
             seed=seed, date=0, fiscal_period=0, n_fiscal_suicides=0, n_fiscal_killed=0
         )
+
+
+class State(
+    pydantic.BaseModel,
+    typing.Generic[OrgState, NatureState, IndividualState, CommonState],
+):
+    base: BaseWorldState
+    org: OrgState
+    nature: NatureState
+    individuals: dict[str, IndividualState]
+    common_state: CommonState
+
+
+class Candidate(
+    pydantic.BaseModel, typing.Generic[CandidatePublicData, CandidatePrivateData]
+):
+    public_data: CandidatePublicData
+    private_data: CandidatePrivateData
 
 
 Labels: typing.TypeAlias = dict[str, str]
@@ -227,7 +228,6 @@ class WorldConfig(
         CandidatePrivateData,
     ],
 ):
-    base_state: BaseWorldState
     state: State[OrgState, NatureState, IndividualState, CommonState]
     org: Org[OrgState, NatureState, IndividualState, CommonState, CandidatePublicData]
     individuals: dict[
@@ -273,7 +273,7 @@ class World(
         self._metrics_config = self._config.metrics.get_config()
 
     def _log(self, name: str, value: float) -> None:
-        self._config.metrics.log(state=self._config.base_state, name=name, value=value)
+        self._config.metrics.log(state=self._config.state.base, name=name, value=value)
 
     def init(self) -> None:
         s = self._config.state
@@ -288,11 +288,23 @@ class World(
             state=s, initial_people=set(self._config.individuals.keys())
         )
 
+        if self._metrics_config.fiscal:
+            self._log(Metrics.RECRUITED, len(self._config.individuals.keys()))
+
     def is_empty(self) -> bool:
         return len(self._config.individuals) == 0
 
+    def run(self, n: int, progress: bool = True) -> None:
+        self.init()
+
+        step = n // 10
+        for i in range(n):
+            if i % step == 0:
+                print(i)
+            self.run_period()
+
     def run_period(self) -> None:
-        for _ in range(self._config.base_state.seed.fiscal_length):
+        for _ in range(self._config.state.base.seed.fiscal_length):
             if self.is_empty():
                 return
             self.run_day()
@@ -302,14 +314,14 @@ class World(
 
         if self._metrics_config.fiscal:
             self._log(Metrics.POPULATION, len(self._config.individuals.keys()))
-            self._log(Metrics.SUICIDES, self._config.base_state.n_fiscal_suicides)
-            self._log(Metrics.KILLED, self._config.base_state.n_fiscal_killed)
+            self._log(Metrics.SUICIDES, self._config.state.base.n_fiscal_suicides)
+            self._log(Metrics.KILLED, self._config.state.base.n_fiscal_killed)
 
         self.perform_recruitment()
-        self._config.base_state.fiscal_period += 1
+        self._config.state.base.fiscal_period += 1
 
     def run_day(self) -> None:
-        bstate = self._config.base_state
+        bstate = self._config.state.base
         n_suicides = 0
         n_killed = 0
 
@@ -349,7 +361,7 @@ class World(
                 Metrics.KILLED,
                 n_killed,
             )
-        self._config.base_state.date += 1
+        self._config.state.base.date += 1
 
     def perform_recruitment(self) -> None:
         cs = self._config.state
