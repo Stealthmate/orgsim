@@ -134,6 +134,18 @@ class Nature(
         raise NotImplementedError()
 
     @abc.abstractmethod
+    def generate_initial_individuals(
+        self, state: NatureState
+    ) -> dict[
+        str,
+        tuple[
+            Individual[OrgState, NatureState, IndividualState, CommonState],
+            IndividualState,
+        ],
+    ]:
+        raise NotImplementedError()
+
+    @abc.abstractmethod
     def generate_candidates(
         self,
         *,
@@ -147,7 +159,9 @@ class Nature(
     @abc.abstractmethod
     def generate_individual(
         self, *, candidate: Candidate[CandidatePublicData, CandidatePrivateData]
-    ) -> Individual[OrgState, NatureState, IndividualState, CommonState]:
+    ) -> tuple[
+        Individual[OrgState, NatureState, IndividualState, CommonState], IndividualState
+    ]:
         raise NotImplementedError()
 
 
@@ -264,8 +278,12 @@ class World(
     def init(self) -> None:
         s = self._config.state
         self._config.nature.init(state=s)
-        for identity, individual in self._config.individuals.items():
-            individual.init(state=s, identity=identity)
+        for (
+            identity,
+            (individual, state),
+        ) in self._config.nature.generate_initial_individuals(state=s.nature).items():
+            self._add_individual(identity, individual, state=state)
+
         self._config.org.init(
             state=s, initial_people=set(self._config.individuals.keys())
         )
@@ -296,19 +314,20 @@ class World(
         n_killed = 0
 
         for identity, individual in list(self._config.individuals.items()):
-            dead = individual.act(state=self._config.state, identity=identity)
-            n_suicides += 1 if dead else 0
-            if not dead:
-                dead = self._config.nature.act_on_individual(
+            killed = False
+            suicide = individual.act(state=self._config.state, identity=identity)
+            n_suicides += 1 if suicide else 0
+            if not suicide:
+                killed = self._config.nature.act_on_individual(
                     state=self._config.state, identity=identity
                 )
-                n_killed += 1 if dead else 0
+                n_killed += 1 if killed else 0
 
+            dead = suicide or killed
             if dead:
-                self._config.individuals[identity].die(
-                    state=self._config.state, identity=identity
+                self._delete_individual(
+                    identity=identity, suicide=suicide, killed=killed
                 )
-                del self._config.individuals[identity]
 
             self._config.org.react_to_individual(
                 state=self._config.state, identity=identity, dead=dead
@@ -349,12 +368,13 @@ class World(
                 )
                 if not accepted:
                     continue
-                individual = self._config.nature.generate_individual(
+                individual, istate = self._config.nature.generate_individual(
                     candidate=candidate
                 )
-                self._config.individuals[identity] = individual
+                self._add_individual(
+                    identity=identity, individual=individual, state=istate
+                )
                 recruited += 1
-                individual.init(state=self._config.state, identity=identity)
                 self._config.org.recruit(
                     state=cs, identity=identity, candidate=candidate.public_data
                 )
@@ -363,3 +383,20 @@ class World(
 
         if self._metrics_config.fiscal:
             self._log(Metrics.RECRUITED, recruited)
+
+    def _add_individual(
+        self,
+        identity: str,
+        individual: Individual[OrgState, NatureState, IndividualState, CommonState],
+        state: IndividualState,
+    ) -> None:
+        self._config.individuals[identity] = individual
+        self._config.state.individuals[identity] = state
+        individual.init(state=self._config.state, identity=identity)
+
+    def _delete_individual(self, *, identity: str, suicide: bool, killed: bool) -> None:
+        self._config.individuals[identity].die(
+            state=self._config.state, identity=identity
+        )
+        del self._config.individuals[identity]
+        del self._config.state.individuals[identity]
