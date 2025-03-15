@@ -6,4 +6,4 @@ class SimpleIndividual(base.Individual):
         raise NotImplementedError()
 
     def compute_work_coefficient(self, state: state.IndividualState) -> float:
-        return 1.0
+        return 0.9

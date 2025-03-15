@@ -11,11 +11,11 @@ class OrgIndividualState(pydantic.BaseModel):
 
 
 class IndividualData(pydantic.BaseModel):
+    accumulated_value: float
     wealth: float
     base_production: float
     salary: float
     cost_of_living: float
-    qol: float
     contribution: float
 
 

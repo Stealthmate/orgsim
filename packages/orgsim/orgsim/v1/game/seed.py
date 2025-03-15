@@ -32,3 +32,5 @@ class GameSeed(pydantic.BaseModel):
     initial_org_wealth: float
     org_productivity: float
     org_seed: OrgSeed
+    production_to_value_coef: float
+    max_invest_coef: float
