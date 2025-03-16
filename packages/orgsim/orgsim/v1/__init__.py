@@ -1,3 +1,3 @@
-from . import game
+from . import game, variants
 
-__all__ = ["game"]
+__all__ = ["game", "variants"]
