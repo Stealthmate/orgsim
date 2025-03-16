@@ -1,3 +1,4 @@
+import abc
 import typing
 
 import pandas as pd
@@ -87,3 +88,62 @@ class Metrics:
     @property
     def data(self) -> MetricsData:
         return self._data
+
+
+class MetricsState(abc.ABC):
+    @property
+    @abc.abstractmethod
+    def date(self) -> int:
+        raise NotImplementedError()
+
+    @property
+    @abc.abstractmethod
+    def period(self) -> int:
+        raise NotImplementedError()
+
+    @property
+    @abc.abstractmethod
+    def population(self) -> int:
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def wealth_of(self, identity: str) -> float:
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def contribution_of(self, identity: str) -> float:
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def score_of(self, identity: str) -> float:
+        raise NotImplementedError()
+
+
+class MetricsLogger:
+    def __init__(self, state: MetricsState, metrics: Metrics) -> None:
+        self._state = state
+        self._metrics = metrics
+
+    def log_end_of_period(self) -> None:
+        self._log(name="population", value=self._state.population)
+
+    def log_individual(self, identity: str) -> None:
+        labels = {"identity": identity}
+        self._log("individual_wealth", self._state.wealth_of(identity), labels=labels)
+        self._log(
+            "individual_contribution",
+            self._state.contribution_of(identity),
+            labels=labels,
+        )
+        self._log("individual_score", self._state.score_of(identity), labels=labels)
+
+    def _log(
+        self, name: str, value: float, labels: typing.Optional[Labels] = None
+    ) -> None:
+        self._metrics.log(
+            date=self._state.date,
+            period=self._state.period,
+            name=name,
+            value=value,
+            labels=labels,
+        )

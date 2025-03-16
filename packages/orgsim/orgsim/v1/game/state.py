@@ -1,60 +1,60 @@
+import typing
+
 import pydantic
 
-
-class PublicIndividualData(pydantic.BaseModel):
-    pass
+from . import individual, metrics, org, seed as seed_
 
 
-class OrgIndividualState(pydantic.BaseModel):
-    public_data: PublicIndividualData
-    contribution: float
-
-
-class IndividualData(pydantic.BaseModel):
-    accumulated_value: float
-    wealth: float
-    base_production: float
-    salary: float
-    cost_of_living: float
-    contribution: float
-
-
-class State(pydantic.BaseModel):
+class SharedStateData(pydantic.BaseModel, typing.Generic[seed_.IndividualSeed]):
+    seed: seed_.Seed[seed_.IndividualSeed]
     date: int
     period: int
-    individuals: dict[str, IndividualData]
     org_wealth: float
     shareholder_value: float
 
+    @classmethod
+    def from_seed(cls, seed: seed_.Seed[seed_.IndividualSeed]) -> typing.Self:
+        return cls(
+            seed=seed,
+            date=0,
+            period=0,
+            org_wealth=seed.initial_org_wealth,
+            shareholder_value=0,
+        )
 
-class StateView:
-    def __init__(self, state: State) -> None:
-        self.state = state
+
+class PeriodicIndividualStateData(pydantic.BaseModel):
+    contribution: float
+    starting_unit_production: float
 
 
-class IndividualState:
-    def __init__(self, state: State, identity: str) -> None:
-        self._state = state
-        self._identity = identity
+class IndividualStateData(pydantic.BaseModel):
+    stats: individual.IndividualStats
+    periodic: PeriodicIndividualStateData
+
+    @classmethod
+    def from_stats(cls, stats: individual.IndividualStats) -> typing.Self:
+        return cls(
+            stats=stats,
+            periodic=PeriodicIndividualStateData(
+                contribution=0, starting_unit_production=stats.unit_production
+            ),
+        )
+
+
+class IndividualStateImpl(
+    individual.IndividualState, typing.Generic[seed_.IndividualSeed]
+):
+    def __init__(
+        self,
+        individual_state: IndividualStateData,
+        shared_state: SharedStateData[seed_.IndividualSeed],
+    ) -> None:
+        self._individual_state = individual_state
+        self._shared_state = shared_state
 
     @property
-    def public_data(self) -> PublicIndividualData:
-        raise NotImplementedError()
-
-    @public_data.setter
-    def public_data(self, v: PublicIndividualData) -> None:
-        raise NotImplementedError()
-
-    @property
-    def wealth(self) -> float:
-        raise NotImplementedError()
-
-    @wealth.setter
-    def wealth(self, v: float) -> None:
-        raise NotImplementedError()
-
-    @property
-    def salary(self) -> float:
+    def identity(self) -> str:
         raise NotImplementedError()
 
     @property
@@ -65,19 +65,143 @@ class IndividualState:
     def cost_of_living(self, v: float) -> None:
         raise NotImplementedError()
 
+    @property
+    def stats(self) -> individual.IndividualStats:
+        raise NotImplementedError()
 
-class OrgState(StateView):
+    @property
+    def salary(self) -> float:
+        raise NotImplementedError()
+
     @property
     def wealth(self) -> float:
-        return self.state.org_wealth
+        raise NotImplementedError()
 
     @wealth.setter
     def wealth(self, v: float) -> None:
-        self.state.org_wealth = v
+        raise NotImplementedError()
+
+
+class OrgStateImpl(org.OrgState, typing.Generic[seed_.IndividualSeed]):
+    def __init__(self, shared_state: SharedStateData[seed_.IndividualSeed]) -> None:
+        self._shared_state = shared_state
+
+    @property
+    def population(self) -> int:
+        raise NotImplementedError()
+
+
+class MetricsState(metrics.MetricsState, typing.Generic[seed_.IndividualSeed]):
+    def __init__(self, shared: SharedStateData[seed_.IndividualSeed]) -> None:
+        self._shared = shared
+
+    @property
+    def date(self) -> int:
+        raise NotImplementedError()
+
+    @property
+    def period(self) -> int:
+        raise NotImplementedError()
+
+    @property
+    def population(self) -> int:
+        raise NotImplementedError()
+
+    def wealth_of(self, identity: str) -> float:
+        raise NotImplementedError()
+
+    def contribution_of(self, identity: str) -> float:
+        raise NotImplementedError()
+
+    def score_of(self, identity: str) -> float:
+        raise NotImplementedError()
+
+
+class StateData(pydantic.BaseModel, typing.Generic[seed_.IndividualSeed]):
+    shared: SharedStateData[seed_.IndividualSeed]
+    individuals: dict[str, tuple[IndividualStateData, individual.Individual]]
+    org: org.Org
+    factory: seed_.Factory[seed_.IndividualSeed]
+
+    @classmethod
+    def from_seed(
+        cls,
+        seed: seed_.Seed[seed_.IndividualSeed],
+        factory: seed_.Factory[seed_.IndividualSeed],
+    ) -> typing.Self:
+        shared = SharedStateData.from_seed(seed)
+        individuals = {}
+        metrics_ = metrics.MetricsLogger(
+            state=MetricsState(shared),
+            metrics=metrics.Metrics(metrics.MetricsData(series_classes={})),
+        )
+        for iseed in seed.initial_individuals:
+            (i, istats, strategy) = factory.create_individual(iseed)
+            istate = IndividualStateData.from_stats(istats)
+            individuals[i] = (
+                istate,
+                individual.Individual(
+                    strategy=strategy,
+                    state=IndividualStateImpl(istate, shared_state=shared),
+                    metrics=metrics_,
+                ),
+            )
+
+        return cls(
+            shared=shared,
+            individuals=individuals,
+            org=org.Org(state=OrgStateImpl(shared), metrics=metrics_),
+            factory=factory,
+        )
+
+
+class GameState(typing.Generic[seed_.IndividualSeed]):
+    @classmethod
+    def from_seed(
+        cls,
+        seed: seed_.Seed[seed_.IndividualSeed],
+        factory: seed_.Factory[seed_.IndividualSeed],
+    ) -> typing.Self:
+        return cls(StateData.from_seed(seed, factory))
+
+    def __init__(self, data: StateData[seed_.IndividualSeed]) -> None:
+        self._data = data
+
+    @property
+    def periods(self) -> int:
+        raise NotImplementedError()
+
+    @property
+    def days_in_period(self) -> int:
+        raise NotImplementedError()
+
+    @property
+    def shareholder_value(self) -> float:
+        raise NotImplementedError()
+
+    def value_of(self, identity: str) -> float:
+        raise NotImplementedError()
+
+    def obj_of(self, identity: str) -> individual.Individual:
+        raise NotImplementedError()
 
     @property
     def individuals(self) -> set[str]:
-        return set(self.state.individuals.keys())
+        raise NotImplementedError()
 
-    def get_salary_for(self, identity: str) -> float:
-        return self.state.individuals[identity].salary
+    def advance_date(self) -> None:
+        raise NotImplementedError()
+
+    def advance_period(self) -> None:
+        raise NotImplementedError()
+
+    @property
+    def org(self) -> org.Org:
+        raise NotImplementedError()
+
+    def delete_individual(self, identity: str) -> None:
+        raise NotImplementedError()
+
+    @property
+    def metrics(self) -> metrics.MetricsLogger:
+        raise NotImplementedError()
