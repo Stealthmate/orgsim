@@ -124,7 +124,7 @@ class _Game(typing.Generic[seed.IndividualSeed, seed.OrgSeed]):
         seed = self._config.seed
         idata = self._config.state.individuals[identity]
 
-        max_investment = ((1 - k) ** 2) * seed.max_invest_coef * idata.wealth
+        max_investment = (k**2) * seed.max_invest_coef * idata.wealth
         investment = min(max_investment, idata.wealth)
         idata.wealth -= investment
         idata.accumulated_value += investment
