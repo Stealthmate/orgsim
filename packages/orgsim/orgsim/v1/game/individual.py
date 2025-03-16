@@ -16,27 +16,13 @@ class IndividualStats(pydantic.BaseModel):
 class IndividualStrategyStateView(abc.ABC):
     @property
     @abc.abstractmethod
-    def wealth(self) -> float:
+    def stats(self) -> IndividualStats:
         raise NotImplementedError()
 
-    @wealth.setter
-    @abc.abstractmethod
-    def wealth(self, v: float) -> None:
-        raise NotImplementedError()
 
-    @property
+class IndividualStrategy(abc.ABC):
     @abc.abstractmethod
-    def salary(self) -> float:
-        raise NotImplementedError()
-
-    @property
-    @abc.abstractmethod
-    def cost_of_living(self) -> float:
-        raise NotImplementedError()
-
-    @cost_of_living.setter
-    @abc.abstractmethod
-    def cost_of_living(self, v: float) -> None:
+    def compute_work_coefficient(self, state: IndividualStrategyStateView) -> float:
         raise NotImplementedError()
 
 
@@ -51,10 +37,13 @@ class IndividualState(IndividualStrategyStateView, abc.ABC):
     def stats(self) -> IndividualStats:
         raise NotImplementedError()
 
-
-class IndividualStrategy(abc.ABC):
+    @property
     @abc.abstractmethod
-    def compute_work_coefficient(self, state: IndividualStrategyStateView) -> float:
+    def contribution(self) -> float:
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def contribute(self, v: float) -> None:
         raise NotImplementedError()
 
 
@@ -78,7 +67,18 @@ class Individual:
         self._metrics.log_individual(self._state.identity)
 
     def do_work(self, k: float) -> None:
-        raise NotImplementedError()
+        stats = self._state.stats
+        production = k * stats.unit_production
+        self._state.contribute(production)
 
     def do_self_improvement(self, k: float) -> None:
-        raise NotImplementedError()
+        stats = self._state.stats
+        percentage = k * 0.05
+        investment = percentage * max(stats.score, 10_000)
+
+        if stats.wealth < investment:
+            return
+
+        stats.score += investment
+        stats.cost_of_living *= 1 + percentage
+        stats.wealth -= investment

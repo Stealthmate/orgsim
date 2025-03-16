@@ -29,12 +29,16 @@ class PeriodicIndividualStateData(pydantic.BaseModel):
 
 
 class IndividualStateData(pydantic.BaseModel):
+    identity: str
     stats: individual.IndividualStats
     periodic: PeriodicIndividualStateData
 
     @classmethod
-    def from_stats(cls, stats: individual.IndividualStats) -> typing.Self:
+    def from_stats(
+        cls, identity: str, stats: individual.IndividualStats
+    ) -> typing.Self:
         return cls(
+            identity=identity,
             stats=stats,
             periodic=PeriodicIndividualStateData(
                 contribution=0, starting_unit_production=stats.unit_production
@@ -55,31 +59,19 @@ class IndividualStateImpl(
 
     @property
     def identity(self) -> str:
-        raise NotImplementedError()
+        return self._individual_state.identity
 
     @property
-    def cost_of_living(self) -> float:
-        raise NotImplementedError()
+    def contribution(self) -> float:
+        return self._individual_state.periodic.contribution
 
-    @cost_of_living.setter
-    def cost_of_living(self, v: float) -> None:
-        raise NotImplementedError()
+    def contribute(self, v: float) -> None:
+        self._individual_state.periodic.contribution += v
+        self._shared_state.org_wealth += self._shared_state.seed.org_productivity * v
 
     @property
     def stats(self) -> individual.IndividualStats:
-        raise NotImplementedError()
-
-    @property
-    def salary(self) -> float:
-        raise NotImplementedError()
-
-    @property
-    def wealth(self) -> float:
-        raise NotImplementedError()
-
-    @wealth.setter
-    def wealth(self, v: float) -> None:
-        raise NotImplementedError()
+        return self._individual_state.stats
 
 
 class OrgStateImpl(org.OrgState, typing.Generic[seed_.IndividualSeed]):
@@ -92,29 +84,34 @@ class OrgStateImpl(org.OrgState, typing.Generic[seed_.IndividualSeed]):
 
 
 class MetricsState(metrics.MetricsState, typing.Generic[seed_.IndividualSeed]):
-    def __init__(self, shared: SharedStateData[seed_.IndividualSeed]) -> None:
+    def __init__(
+        self,
+        shared: SharedStateData[seed_.IndividualSeed],
+        individuals: dict[str, IndividualStateData],
+    ) -> None:
         self._shared = shared
+        self._individuals = individuals
 
     @property
     def date(self) -> int:
-        raise NotImplementedError()
+        return self._shared.date
 
     @property
     def period(self) -> int:
-        raise NotImplementedError()
+        return self._shared.period
 
     @property
     def population(self) -> int:
         raise NotImplementedError()
 
     def wealth_of(self, identity: str) -> float:
-        raise NotImplementedError()
+        return self._individuals[identity].stats.wealth
 
     def contribution_of(self, identity: str) -> float:
-        raise NotImplementedError()
+        return self._individuals[identity].periodic.contribution
 
     def score_of(self, identity: str) -> float:
-        raise NotImplementedError()
+        return self._individuals[identity].stats.score
 
 
 class StateData(pydantic.BaseModel, typing.Generic[seed_.IndividualSeed]):
@@ -122,6 +119,10 @@ class StateData(pydantic.BaseModel, typing.Generic[seed_.IndividualSeed]):
     individuals: dict[str, tuple[IndividualStateData, individual.Individual]]
     org: org.Org
     factory: seed_.Factory[seed_.IndividualSeed]
+    metrics: metrics.MetricsLogger
+
+    class Config:
+        arbitrary_types_allowed = True
 
     @classmethod
     def from_seed(
@@ -130,14 +131,19 @@ class StateData(pydantic.BaseModel, typing.Generic[seed_.IndividualSeed]):
         factory: seed_.Factory[seed_.IndividualSeed],
     ) -> typing.Self:
         shared = SharedStateData.from_seed(seed)
-        individuals = {}
-        metrics_ = metrics.MetricsLogger(
-            state=MetricsState(shared),
-            metrics=metrics.Metrics(metrics.MetricsData(series_classes={})),
-        )
+        individual_states = {}
         for iseed in seed.initial_individuals:
             (i, istats, strategy) = factory.create_individual(iseed)
-            istate = IndividualStateData.from_stats(istats)
+            istate = IndividualStateData.from_stats(i, istats)
+            individual_states[i] = istate
+
+        metrics_ = metrics.MetricsLogger(
+            state=MetricsState(shared, individuals=individual_states),
+            metrics=metrics.Metrics(metrics.MetricsData(series_classes={})),
+        )
+
+        individuals = {}
+        for i, istate in individual_states.items():
             individuals[i] = (
                 istate,
                 individual.Individual(
@@ -152,6 +158,7 @@ class StateData(pydantic.BaseModel, typing.Generic[seed_.IndividualSeed]):
             individuals=individuals,
             org=org.Org(state=OrgStateImpl(shared), metrics=metrics_),
             factory=factory,
+            metrics=metrics_,
         )
 
 
@@ -169,11 +176,11 @@ class GameState(typing.Generic[seed_.IndividualSeed]):
 
     @property
     def periods(self) -> int:
-        raise NotImplementedError()
+        return self._data.shared.seed.periods
 
     @property
     def days_in_period(self) -> int:
-        raise NotImplementedError()
+        return self._data.shared.seed.days_in_period
 
     @property
     def shareholder_value(self) -> float:
@@ -183,17 +190,17 @@ class GameState(typing.Generic[seed_.IndividualSeed]):
         raise NotImplementedError()
 
     def obj_of(self, identity: str) -> individual.Individual:
-        raise NotImplementedError()
+        return self._data.individuals[identity][1]
 
     @property
     def individuals(self) -> set[str]:
-        raise NotImplementedError()
+        return set(self._data.individuals.keys())
 
     def advance_date(self) -> None:
-        raise NotImplementedError()
+        self._data.shared.date += 1
 
     def advance_period(self) -> None:
-        raise NotImplementedError()
+        self._data.shared.period += 1
 
     @property
     def org(self) -> org.Org:
@@ -204,4 +211,4 @@ class GameState(typing.Generic[seed_.IndividualSeed]):
 
     @property
     def metrics(self) -> metrics.MetricsLogger:
-        raise NotImplementedError()
+        return self._data.metrics
