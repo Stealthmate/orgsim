@@ -3,7 +3,7 @@ import typing
 
 import pydantic
 
-from . import common, framework, metrics, models
+from . import common, framework, metrics, models, v1
 
 T = typing.TypeVar("T", bound=pydantic.BaseModel)
 
@@ -47,4 +47,4 @@ def do_experiment(
     return strategy.metrics
 
 
-__all__ = ["common", "framework", "models", "run_world"]
+__all__ = ["common", "framework", "models", "run_world", "v1"]
