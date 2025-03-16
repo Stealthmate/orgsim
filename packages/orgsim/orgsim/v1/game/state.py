@@ -20,6 +20,7 @@ class IndividualData(pydantic.BaseModel):
 
 
 class GameState(pydantic.BaseModel):
+    date: int
     period: int
     individuals: dict[str, IndividualData]
     org_wealth: float

@@ -2,7 +2,7 @@ import typing
 
 import pydantic
 
-from . import base, individual, org, state, seed
+from . import base, individual, metrics, org, state, seed
 
 
 class GameConfig(pydantic.BaseModel):
@@ -10,6 +10,7 @@ class GameConfig(pydantic.BaseModel):
     state: state.GameState
     org: base.Org
     individuals: dict[str, base.Individual]
+    metrics: metrics.Metrics
 
     class Config:
         arbitrary_types_allowed = True
@@ -22,6 +23,7 @@ class Game:
         config = GameConfig(
             seed=seed,
             state=state.GameState(
+                date=0,
                 period=0,
                 individuals={k: v for (k, _, v) in individuals},
                 org_wealth=seed.initial_org_wealth,
@@ -29,6 +31,7 @@ class Game:
             ),
             org=factory.create_org(seed.org_seed),
             individuals={k: v for (k, v, _) in individuals},
+            metrics=metrics.Metrics(metrics.MetricsData(series_classes={})),
         )
         return cls(config)
 
@@ -45,6 +48,7 @@ class Game:
         for _ in range(self._config.seed.days_in_period):
             self._play_day()
 
+        self._log(name="population", value=len(self._config.individuals))
         self._play_org()
         self._config.state.period += 1
 
@@ -55,6 +59,8 @@ class Game:
     def _play_day(self) -> None:
         for identity, ind in self._config.individuals.items():
             self._play_individual(identity, ind)
+
+        self._config.state.date += 1
 
     def _play_individual(self, identity: str, individual: base.Individual) -> None:
         seed = self._config.seed
@@ -126,5 +132,29 @@ class Game:
     def _update_salary(self, identity: str, salary: float) -> None:
         self._config.state.individuals[identity].salary = salary
 
+    def _log(
+        self, name: str, value: float, labels: typing.Optional[metrics.Labels] = None
+    ) -> None:
+        self._config.metrics.log(
+            date=self._config.state.date,
+            period=self._config.state.period,
+            name=name,
+            value=value,
+            labels=labels,
+        )
 
-__all__ = ["base", "individual", "org", "seed", "state", "GameConfig", "Game"]
+    @property
+    def metrics(self) -> metrics.Metrics:
+        return self._config.metrics
+
+
+__all__ = [
+    "base",
+    "individual",
+    "metrics",
+    "org",
+    "seed",
+    "state",
+    "GameConfig",
+    "Game",
+]
