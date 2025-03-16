@@ -1,29 +1,46 @@
-import numpy as np
+from orgsim import v1
 
-from orgsim.world import v1
-
-metrics = v1.models.v1.Metrics()
-
-seed = v1.models.v1.Seed(
-    base=v1.base.BaseWorldSeed(fiscal_length=365),
-    org=v1.models.v1.OrgSeed(recruit_count_per_period=1),
-    nature=v1.models.v1.NatureSeed(
-        initial_candidates=[
-            v1.models.v1.CandidatePrivateData(selfishness=x)
-            for x in np.random.uniform(0, 1, size=10)
-        ]
-    ),
-    common=v1.models.v1.CommonSeed(
-        daily_salary=300_000 / 365,
-        daily_living_cost=400_000 / 365,
-        productivity=2,
-        max_age=100,
-        initial_individual_reward=400_000,
-    ),
+seed = v1.game.seed.GameSeed(
+    periods=240,
+    days_in_period=30,
+    initial_individuals=[
+        v1.game.seed.IndividualSeed(initial_wealth=100_000) for _ in range(10)
+    ],
+    initial_org_wealth=1_000_000,
+    org_seed=v1.game.seed.OrgSeed(),
+    org_productivity=0.8,
+    max_invest_coef=0.2,
+    production_to_value_coef=0.001,
 )
 
-model = v1.models.v1.create_model(seed=seed, metrics=metrics)
-model.init()
-model.run(20)
 
-v1.explore.plot_world_summary(metrics=metrics, filepath="example.png")
+class Factory(v1.game.seed.Factory):
+    def __init__(self) -> None:
+        self._identity_counter: int = 0
+
+    def create_org(self, seed: v1.game.seed.OrgSeed) -> v1.game.base.Org:
+        return v1.game.org.SimpleOrg()
+
+    def create_individual(
+        self, seed: v1.game.seed.IndividualSeed
+    ) -> tuple[str, v1.game.base.Individual, v1.game.state.IndividualData]:
+        self._identity_counter += 1
+        identity = str(self._identity_counter)
+        return (
+            identity,
+            v1.game.individual.SimpleIndividual(),
+            v1.game.state.IndividualData(
+                accumulated_value=0,
+                base_production=10_000,
+                salary=300_000,
+                cost_of_living=300_000,
+                contribution=0,
+                wealth=seed.initial_wealth,
+            ),
+        )
+
+
+factory = Factory()
+game = v1.game.Game.from_seed(seed, factory)
+
+game.play()
