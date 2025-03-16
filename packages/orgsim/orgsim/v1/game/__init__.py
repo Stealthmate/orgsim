@@ -16,6 +16,14 @@ class Config(pydantic.BaseModel, typing.Generic[seed.IndividualSeed, seed.OrgSee
         arbitrary_types_allowed = True
 
 
+class Results(pydantic.BaseModel):
+    shareholder_value: float
+    total_individual_value: float
+    min_individual_value: float
+    med_individual_value: float
+    max_individual_value: float
+
+
 class _Game(typing.Generic[seed.IndividualSeed, seed.OrgSeed]):
     @classmethod
     def from_seed(
@@ -41,12 +49,34 @@ class _Game(typing.Generic[seed.IndividualSeed, seed.OrgSeed]):
 
     def __init__(self, config: Config[seed.IndividualSeed, seed.OrgSeed]) -> None:
         self._config = config
+        self._individual_tally: list[float] = []
+        self._results = Results(
+            shareholder_value=0,
+            total_individual_value=0,
+            min_individual_value=0,
+            med_individual_value=0,
+            max_individual_value=0,
+        )
 
-    def play(self) -> None:
+    def play(self) -> Results:
         """Play the game for however many periods were provided in the seed."""
 
         for _ in range(self._config.seed.periods):
             self.play_period()
+
+        self._results.shareholder_value = self._config.state.shareholder_value
+        for k in self._config.individuals.keys():
+            self._individual_tally.append(
+                self._config.state.individuals[k].accumulated_value
+            )
+        self._results.total_individual_value = sum(self._individual_tally)
+        self._results.min_individual_value = min(self._individual_tally)
+        self._results.med_individual_value = sorted(self._individual_tally)[
+            len(self._individual_tally) // 2
+        ]
+        self._results.max_individual_value = max(self._individual_tally)
+
+        return self._results
 
     def play_period(self) -> None:
         """Play a single period.
@@ -60,8 +90,12 @@ class _Game(typing.Generic[seed.IndividualSeed, seed.OrgSeed]):
         for _ in range(self._config.seed.days_in_period):
             self.play_day()
 
-        self._log(name="population", value=len(self._config.individuals))
-        self.play_org()
+        population = len(self._config.individuals)
+        self._log(name="population", value=population)
+
+        if population > 0:
+            self.play_org()
+
         self._config.state.period += 1
 
     def initialize_period_state(self) -> None:
@@ -101,6 +135,14 @@ class _Game(typing.Generic[seed.IndividualSeed, seed.OrgSeed]):
         self.individual_do_work(identity, k)
         self.individual_do_self_improvement(identity, 1 - k)
 
+        idata = self._config.state.individuals[identity]
+        labels = {"identity": identity}
+        self._log("individual_wealth", idata.wealth, labels=labels)
+        self._log("individual_contribution", idata.contribution, labels=labels)
+        self._log(
+            "individual_accumulated_value", idata.accumulated_value, labels=labels
+        )
+
     def individual_do_work(self, identity: str, k: float) -> None:
         """Assume that the individual spent `k` of his time working and update the game state.
 
@@ -135,7 +177,6 @@ class _Game(typing.Generic[seed.IndividualSeed, seed.OrgSeed]):
 
         total_salaries = sum(v.salary for v in self._config.state.individuals.values())
         insufficiency_coef = min(self._config.state.org_wealth / total_salaries, 1.0)
-        # print(total_salaries, self._config.state.org_wealth, insufficiency_coef)
 
         bonuses = org.compute_bonuses(ostate)
 
@@ -163,11 +204,15 @@ class _Game(typing.Generic[seed.IndividualSeed, seed.OrgSeed]):
 
     def _deduct_cost_of_living(self, identity: str) -> None:
         state = self._config.state
-        state.individuals[identity].wealth -= state.individuals[identity].cost_of_living
+        idata = state.individuals[identity]
+        idata.wealth -= idata.cost_of_living
         if state.individuals[identity].wealth < 0:
             self.die(identity)
 
     def die(self, identity: str) -> None:
+        self._individual_tally.append(
+            self._config.state.individuals[identity].accumulated_value
+        )
         del self._config.individuals[identity]
         del self._config.state.individuals[identity]
 
@@ -221,7 +266,7 @@ class Game(typing.Generic[seed.IndividualSeed, seed.OrgSeed]):
     def __init__(self, game: _Game[seed.IndividualSeed, seed.OrgSeed]) -> None:
         self._game = game
 
-    def play(self) -> None:
+    def play(self) -> Results:
         return self._game.play()
 
 
