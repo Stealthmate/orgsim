@@ -1,19 +1,15 @@
 import abc
+import typing
 
 import pydantic
 
 from . import base, state
 
-
-class IndividualSeed(pydantic.BaseModel):
-    initial_wealth: float
-
-
-class OrgSeed(pydantic.BaseModel):
-    pass
+IndividualSeed = typing.TypeVar("IndividualSeed")
+OrgSeed = typing.TypeVar("OrgSeed")
 
 
-class Factory(abc.ABC):
+class Factory(abc.ABC, typing.Generic[IndividualSeed, OrgSeed]):
     @abc.abstractmethod
     def create_individual(
         self, seed: IndividualSeed
@@ -25,7 +21,7 @@ class Factory(abc.ABC):
         raise NotImplementedError()
 
 
-class Seed(pydantic.BaseModel):
+class Seed(pydantic.BaseModel, typing.Generic[IndividualSeed, OrgSeed]):
     periods: int
     days_in_period: int
     initial_individuals: list[IndividualSeed]

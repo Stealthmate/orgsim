@@ -5,8 +5,8 @@ import pydantic
 from . import base, individual, metrics, org, state, seed
 
 
-class Config(pydantic.BaseModel):
-    seed: seed.Seed
+class Config(pydantic.BaseModel, typing.Generic[seed.IndividualSeed, seed.OrgSeed]):
+    seed: seed.Seed[seed.IndividualSeed, seed.OrgSeed]
     state: state.State
     org: base.Org
     individuals: dict[str, base.Individual]
@@ -16,9 +16,13 @@ class Config(pydantic.BaseModel):
         arbitrary_types_allowed = True
 
 
-class _Game:
+class _Game(typing.Generic[seed.IndividualSeed, seed.OrgSeed]):
     @classmethod
-    def from_seed(cls, seed: seed.Seed, factory: seed.Factory) -> typing.Self:
+    def from_seed(
+        cls,
+        seed: seed.Seed[seed.IndividualSeed, seed.OrgSeed],
+        factory: seed.Factory[seed.IndividualSeed, seed.OrgSeed],
+    ) -> typing.Self:
         individuals = [factory.create_individual(s) for s in seed.initial_individuals]
         config = Config(
             seed=seed,
@@ -35,7 +39,7 @@ class _Game:
         )
         return cls(config)
 
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: Config[seed.IndividualSeed, seed.OrgSeed]) -> None:
         self._config = config
 
     def play(self) -> None:
@@ -191,9 +195,13 @@ class _Game:
         return self._config.metrics
 
 
-class Game:
+class Game(typing.Generic[seed.IndividualSeed, seed.OrgSeed]):
     @classmethod
-    def from_seed(cls, seed: seed.Seed, factory: seed.Factory) -> typing.Self:
+    def from_seed(
+        cls,
+        seed: seed.Seed[seed.IndividualSeed, seed.OrgSeed],
+        factory: seed.Factory[seed.IndividualSeed, seed.OrgSeed],
+    ) -> typing.Self:
         individuals = [factory.create_individual(s) for s in seed.initial_individuals]
         config = Config(
             seed=seed,
@@ -210,7 +218,7 @@ class Game:
         )
         return cls(_Game(config))
 
-    def __init__(self, game: _Game) -> None:
+    def __init__(self, game: _Game[seed.IndividualSeed, seed.OrgSeed]) -> None:
         self._game = game
 
     def play(self) -> None:
