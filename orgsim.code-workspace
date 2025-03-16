@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "initiatives/v1"
+		},
+		{
+			"path": "packages/orgsim"
+		}
+	],
+	"settings": {}
+}

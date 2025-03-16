@@ -1,0 +1,6 @@
+{
+    "files.exclude": {
+        "initiatives/v1": true,
+        "packages/orgsim": true
+    }
+}
