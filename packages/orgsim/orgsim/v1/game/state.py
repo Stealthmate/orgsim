@@ -46,6 +46,10 @@ class IndividualStateData(pydantic.BaseModel):
         )
 
 
+class IndividualStates(pydantic.BaseModel):
+    d: dict[str, IndividualStateData]
+
+
 class IndividualStateImpl(
     individual.IndividualState, typing.Generic[seed_.IndividualSeed]
 ):
@@ -75,19 +79,56 @@ class IndividualStateImpl(
 
 
 class OrgStateImpl(org.OrgState, typing.Generic[seed_.IndividualSeed]):
-    def __init__(self, shared_state: SharedStateData[seed_.IndividualSeed]) -> None:
+    def __init__(
+        self,
+        shared_state: SharedStateData[seed_.IndividualSeed],
+        individuals: IndividualStates,
+    ) -> None:
         self._shared_state = shared_state
+        self._individuals = individuals
+
+    @property
+    def wealth(self) -> float:
+        return self._shared_state.org_wealth
+
+    @wealth.setter
+    def wealth(self, v: float) -> None:
+        self._shared_state.org_wealth = v
 
     @property
     def population(self) -> int:
-        raise NotImplementedError()
+        return len(self._individuals.d)
+
+    @property
+    def individuals(self) -> set[str]:
+        return set(self._individuals.d.keys())
+
+    def salary_of(self, identity: str) -> float:
+        return self._individuals.d[identity].stats.salary
+
+    @property
+    def shareholder_value(self) -> float:
+        return self._shared_state.shareholder_value
+
+    @shareholder_value.setter
+    def shareholder_value(self, v: float) -> None:
+        self._shared_state.shareholder_value = v
+
+    def pay_individual(self, identity: str, v: float) -> None:
+        self._individuals.d[identity].stats.wealth += v
+        self._shared_state.org_wealth -= v
+
+    def deduct_cost_of_living(self, identity: str) -> bool:
+        istats = self._individuals.d[identity].stats
+        istats.wealth -= istats.cost_of_living
+        return istats.wealth < 0
 
 
 class MetricsState(metrics.MetricsState, typing.Generic[seed_.IndividualSeed]):
     def __init__(
         self,
         shared: SharedStateData[seed_.IndividualSeed],
-        individuals: dict[str, IndividualStateData],
+        individuals: IndividualStates,
     ) -> None:
         self._shared = shared
         self._individuals = individuals
@@ -102,21 +143,25 @@ class MetricsState(metrics.MetricsState, typing.Generic[seed_.IndividualSeed]):
 
     @property
     def population(self) -> int:
-        raise NotImplementedError()
+        return len(self._individuals.d)
 
     def wealth_of(self, identity: str) -> float:
-        return self._individuals[identity].stats.wealth
+        return self._individuals.d[identity].stats.wealth
 
     def contribution_of(self, identity: str) -> float:
-        return self._individuals[identity].periodic.contribution
+        return self._individuals.d[identity].periodic.contribution
 
     def score_of(self, identity: str) -> float:
-        return self._individuals[identity].stats.score
+        return self._individuals.d[identity].stats.score
+
+    def unit_production_of(self, identity: str) -> float:
+        return self._individuals.d[identity].stats.unit_production
 
 
 class StateData(pydantic.BaseModel, typing.Generic[seed_.IndividualSeed]):
     shared: SharedStateData[seed_.IndividualSeed]
-    individuals: dict[str, tuple[IndividualStateData, individual.Individual]]
+    individual_states: IndividualStates
+    individuals: dict[str, individual.Individual]
     org: org.Org
     factory: seed_.Factory[seed_.IndividualSeed]
     metrics: metrics.MetricsLogger
@@ -137,26 +182,28 @@ class StateData(pydantic.BaseModel, typing.Generic[seed_.IndividualSeed]):
             istate = IndividualStateData.from_stats(i, istats)
             individual_states[i] = istate
 
+        ids = IndividualStates(d=individual_states)
         metrics_ = metrics.MetricsLogger(
-            state=MetricsState(shared, individuals=individual_states),
+            state=MetricsState(shared, individuals=ids),
             metrics=metrics.Metrics(metrics.MetricsData(series_classes={})),
         )
 
         individuals = {}
         for i, istate in individual_states.items():
-            individuals[i] = (
-                istate,
-                individual.Individual(
-                    strategy=strategy,
-                    state=IndividualStateImpl(istate, shared_state=shared),
-                    metrics=metrics_,
-                ),
+            individuals[i] = individual.Individual(
+                strategy=strategy,
+                state=IndividualStateImpl(istate, shared_state=shared),
+                metrics=metrics_,
             )
 
         return cls(
             shared=shared,
+            individual_states=ids,
             individuals=individuals,
-            org=org.Org(state=OrgStateImpl(shared), metrics=metrics_),
+            org=org.Org(
+                state=OrgStateImpl(shared, individuals=ids),
+                metrics=metrics_,
+            ),
             factory=factory,
             metrics=metrics_,
         )
@@ -184,13 +231,13 @@ class GameState(typing.Generic[seed_.IndividualSeed]):
 
     @property
     def shareholder_value(self) -> float:
-        raise NotImplementedError()
+        return self._data.shared.shareholder_value
 
-    def value_of(self, identity: str) -> float:
-        raise NotImplementedError()
+    def score_of(self, identity: str) -> float:
+        return self._data.individual_states.d[identity].stats.score
 
     def obj_of(self, identity: str) -> individual.Individual:
-        return self._data.individuals[identity][1]
+        return self._data.individuals[identity]
 
     @property
     def individuals(self) -> set[str]:
@@ -204,10 +251,11 @@ class GameState(typing.Generic[seed_.IndividualSeed]):
 
     @property
     def org(self) -> org.Org:
-        raise NotImplementedError()
+        return self._data.org
 
     def delete_individual(self, identity: str) -> None:
-        raise NotImplementedError()
+        del self._data.individuals[identity]
+        del self._data.individual_states.d[identity]
 
     @property
     def metrics(self) -> metrics.MetricsLogger:

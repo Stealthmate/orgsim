@@ -55,14 +55,16 @@ class _Game(typing.Generic[seed.IndividualSeed]):
 
     def calculate_results(self) -> Results:
         individual_values = list(
-            self._state.value_of(i) for i in self._state.individuals
+            self._state.score_of(i) for i in self._state.individuals
         )
         results = Results(
             shareholder_value=self._state.shareholder_value,
             total_individual_value=sum(individual_values),
-            min_individual_value=min(individual_values),
-            med_individual_value=sorted(individual_values)[len(individual_values) // 2],
-            max_individual_value=max(individual_values),
+            min_individual_value=min(individual_values) if individual_values else 0,
+            med_individual_value=sorted(individual_values)[len(individual_values) // 2]
+            if individual_values
+            else 0,
+            max_individual_value=max(individual_values) if individual_values else 0,
         )
         return results
 

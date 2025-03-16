@@ -118,6 +118,10 @@ class MetricsState(abc.ABC):
     def score_of(self, identity: str) -> float:
         raise NotImplementedError()
 
+    @abc.abstractmethod
+    def unit_production_of(self, identity: str) -> float:
+        raise NotImplementedError()
+
 
 class MetricsLogger:
     def __init__(self, state: MetricsState, metrics: Metrics) -> None:
@@ -136,6 +140,11 @@ class MetricsLogger:
             labels=labels,
         )
         self._log("individual_score", self._state.score_of(identity), labels=labels)
+        self._log(
+            "individual_unit_production",
+            self._state.unit_production_of(identity),
+            labels=labels,
+        )
 
     def _log(
         self, name: str, value: float, labels: typing.Optional[Labels] = None

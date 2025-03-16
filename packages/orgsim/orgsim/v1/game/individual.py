@@ -79,6 +79,7 @@ class Individual:
         if stats.wealth < investment:
             return
 
-        stats.score += investment
-        stats.cost_of_living *= 1 + percentage
         stats.wealth -= investment
+        stats.score += investment
+        stats.cost_of_living *= 1 + (percentage * 0.1)
+        stats.unit_production *= 1 + percentage
