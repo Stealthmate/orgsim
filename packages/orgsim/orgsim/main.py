@@ -1,6 +1,6 @@
 from orgsim import v1
 
-seed = v1.game.seed.GameSeed(
+seed = v1.game.seed.Seed(
     periods=240,
     days_in_period=30,
     initial_individuals=[

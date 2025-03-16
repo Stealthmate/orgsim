@@ -19,7 +19,7 @@ class IndividualData(pydantic.BaseModel):
     contribution: float
 
 
-class GameState(pydantic.BaseModel):
+class State(pydantic.BaseModel):
     date: int
     period: int
     individuals: dict[str, IndividualData]
@@ -28,12 +28,12 @@ class GameState(pydantic.BaseModel):
 
 
 class StateView:
-    def __init__(self, state: GameState) -> None:
+    def __init__(self, state: State) -> None:
         self.state = state
 
 
 class IndividualState:
-    def __init__(self, state: GameState, identity: str) -> None:
+    def __init__(self, state: State, identity: str) -> None:
         self._state = state
         self._identity = identity
 

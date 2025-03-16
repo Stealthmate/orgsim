@@ -5,9 +5,9 @@ import pydantic
 from . import base, individual, metrics, org, state, seed
 
 
-class GameConfig(pydantic.BaseModel):
-    seed: seed.GameSeed
-    state: state.GameState
+class Config(pydantic.BaseModel):
+    seed: seed.Seed
+    state: state.State
     org: base.Org
     individuals: dict[str, base.Individual]
     metrics: metrics.Metrics
@@ -18,11 +18,11 @@ class GameConfig(pydantic.BaseModel):
 
 class _Game:
     @classmethod
-    def from_seed(cls, seed: seed.GameSeed, factory: seed.Factory) -> typing.Self:
+    def from_seed(cls, seed: seed.Seed, factory: seed.Factory) -> typing.Self:
         individuals = [factory.create_individual(s) for s in seed.initial_individuals]
-        config = GameConfig(
+        config = Config(
             seed=seed,
-            state=state.GameState(
+            state=state.State(
                 date=0,
                 period=0,
                 individuals={k: v for (k, _, v) in individuals},
@@ -35,7 +35,7 @@ class _Game:
         )
         return cls(config)
 
-    def __init__(self, config: GameConfig) -> None:
+    def __init__(self, config: Config) -> None:
         self._config = config
 
     def play(self) -> None:
@@ -150,11 +150,11 @@ class _Game:
 
 class Game:
     @classmethod
-    def from_seed(cls, seed: seed.GameSeed, factory: seed.Factory) -> typing.Self:
+    def from_seed(cls, seed: seed.Seed, factory: seed.Factory) -> typing.Self:
         individuals = [factory.create_individual(s) for s in seed.initial_individuals]
-        config = GameConfig(
+        config = Config(
             seed=seed,
-            state=state.GameState(
+            state=state.State(
                 date=0,
                 period=0,
                 individuals={k: v for (k, _, v) in individuals},
@@ -181,6 +181,6 @@ __all__ = [
     "org",
     "seed",
     "state",
-    "GameConfig",
+    "Config",
     "Game",
 ]

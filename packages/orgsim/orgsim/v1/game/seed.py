@@ -25,7 +25,7 @@ class Factory(abc.ABC):
         raise NotImplementedError()
 
 
-class GameSeed(pydantic.BaseModel):
+class Seed(pydantic.BaseModel):
     periods: int
     days_in_period: int
     initial_individuals: list[IndividualSeed]
