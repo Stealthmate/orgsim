@@ -39,11 +39,19 @@ class _Game:
         self._config = config
 
     def play(self) -> None:
+        """Play the game for however many periods were provided in the seed."""
+
         for _ in range(self._config.seed.periods):
             self.play_period()
 
     def play_period(self) -> None:
-        self.reset_period()
+        """Play a single period.
+
+        A period consists of a fixed number of days (as configured in the seed). All days are played
+        in order. At the end of the period the Org plays its turn.
+        """
+
+        self.initialize_period_state()
 
         for _ in range(self._config.seed.days_in_period):
             self.play_day()
@@ -52,23 +60,55 @@ class _Game:
         self.play_org()
         self._config.state.period += 1
 
-    def reset_period(self) -> None:
+    def initialize_period_state(self) -> None:
+        """Set the initial state before each period run.
+
+        During every period, some information is recorded in order to be used by the Org at the end.
+        This method is called at the beginning of every period in order to reset that information.
+        """
+
         for k in self._config.individuals.keys():
             self._config.state.individuals[k].contribution = 0
 
     def play_day(self) -> None:
-        for identity, ind in self._config.individuals.items():
-            self.play_individual(identity, ind)
+        """Play a single day.
+
+        During the day, all Individuals execute their turns sequentially, albeit in no particular order.
+        """
+
+        for identity in self._config.individuals.keys():
+            self.play_individual(identity)
 
         self._config.state.date += 1
 
-    def play_individual(self, identity: str, individual: base.Individual) -> None:
-        seed = self._config.seed
+    def play_individual(self, identity: str) -> None:
+        """Play the turn for a specific individual.
 
+        Each turn, the Individual must make a decision expressed by a real value `k` between 0 and 1,
+        which can be loosely thought of as the proportion of time spent by the Individual on organizational work.
+        The rest of the time is used for self-improvement.
+        """
+
+        individual = self._config.individuals[identity]
         istate = state.IndividualState(self._config.state, identity)
+
         k = individual.compute_work_coefficient(istate)
 
+        self.individual_do_work(identity, k)
+        self.individual_do_self_improvement(identity, 1 - k)
+
+    def individual_do_work(self, identity: str, k: float) -> None:
+        """Assume that the individual spent `k` of his time working and update the game state.
+
+        Doing work results in two state changes:
+
+        1. The total wealth of the Org is increased.
+        2. The individual's contribution value for this period is increased.
+        """
+
+        seed = self._config.seed
         idata = self._config.state.individuals[identity]
+
         production = idata.base_production + (
             idata.accumulated_value * seed.production_to_value_coef
         )
@@ -76,11 +116,14 @@ class _Game:
         self._config.state.org_wealth += work * self._config.seed.org_productivity
         idata.contribution += work
 
+    def individual_do_self_improvement(self, identity: str, k: float) -> None:
+        seed = self._config.seed
+        idata = self._config.state.individuals[identity]
+
         max_investment = ((1 - k) ** 2) * seed.max_invest_coef * idata.wealth
-        if max_investment > 1e-7:
-            investment = min(max_investment, idata.wealth)
-            idata.wealth -= investment
-            idata.accumulated_value += investment
+        investment = min(max_investment, idata.wealth)
+        idata.wealth -= investment
+        idata.accumulated_value += investment
 
     def play_org(self) -> None:
         org = self._config.org
